@@ -2,9 +2,11 @@ import base64
 import copy
 import html
 import io
+import re
 
 import pyotp
 import qrcode
+import requests
 import streamlit as st
 from PIL import Image, ImageEnhance
 
@@ -133,16 +135,11 @@ h1, h2, h3 { color: var(--ink); font-weight: 700; }
 .news-body .nc { color: var(--muted); font-size: .95rem; line-height: 1.9; }
 
 /* المشاريع */
-.project-card {
-    background: var(--surface); border: 1px solid var(--line);
-    border-inline-start: 4px solid var(--line);
-    border-radius: 12px; padding: 1.1rem 1.25rem; margin-bottom: .6rem;
+.badge {
+    display: inline-block; background: var(--bg); border: 1px solid var(--line);
+    border-radius: 999px; padding: .1rem .75rem; font-size: .82rem;
+    color: var(--muted); margin-bottom: .7rem;
 }
-.project-card.active { border-inline-start-color: var(--brand); }
-.project-card .pn { font-size: 1.1rem; font-weight: 700; margin-bottom: .2rem; }
-.project-card .pt { font-weight: 500; margin-bottom: .35rem; }
-.project-card .pd { color: var(--muted); font-size: .93rem; line-height: 1.9; }
-.project-card .pf { color: var(--muted); font-size: .85rem; margin-top: .6rem; }
 
 /* عرض التقرير */
 .viewer-head {
@@ -241,6 +238,38 @@ def safe_url(url):
     return url if url.startswith(("http://", "https://")) else ""
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def resolve_short_url(url):
+    """يتتبع التحويلات للرابط القصير ويرجع الرابط النهائي."""
+    try:
+        r = requests.get(url, allow_redirects=True, timeout=6, headers={"User-Agent": "Mozilla/5.0"})
+        return r.url
+    except Exception:
+        return url
+
+
+_REPORT_RE = re.compile(
+    r"(?:lookerstudio|datastudio)\.google\.com/(?:u/\d+/)?reporting/([0-9a-zA-Z-]+)(?:/page/([0-9a-zA-Z_-]+))?"
+)
+
+
+def to_embed_url(url):
+    """يحوّل رابط تقرير Looker Studio (عادي أو قصير) إلى رابط التضمين الصالح للـ iframe."""
+    url = safe_url(url)
+    if not url or "/embed/reporting/" in url:
+        return url
+    original = url
+    if "/s/" in url and ("lookerstudio.google.com" in url or "datastudio.google.com" in url):
+        url = resolve_short_url(url)
+    m = _REPORT_RE.search(url)
+    if m:
+        embed = f"https://lookerstudio.google.com/embed/reporting/{m.group(1)}"
+        if m.group(2):
+            embed += f"/page/{m.group(2)}"
+        return embed
+    return original
+
+
 def section_title(text):
     st.markdown(f'<div class="section-title">{esc(text)}</div>', unsafe_allow_html=True)
 
@@ -255,12 +284,16 @@ DEFAULT_DASHBOARDS = {
         "title": "📊 QA Dashboard تحليل الأداء قسم الجودة",
         "description": "تحتوي هذه الداشبورد على تحليلات شاملة للنشاطات اليومية والشهرية، بالإضافة إلى مقارنة الأداء ومؤشرات الأداء الرئيسية (KPIs).",
         "url": "https://datastudio.google.com/s/pZkBFbgR5as",
+        "embed_url": "",
+        "category": "مؤشرات الأداء",
         "files": [],
     },
     "مشروع الـ TPV": {
         "title": "📈 TPV Dashboard",
         "description": "تستعرض الداشبورد تفاصيل مشروع TPV ونتيجتها وتفاصيل الأنشطة المستخدمة يومياً من قسم الجودة ونسب الربحية لمختلف القطاعات.",
         "url": "https://datastudio.google.com/s/lzMLkPXvy28",
+        "embed_url": "",
+        "category": "المشاريع",
         "files": [],
     },
 }
@@ -542,6 +575,15 @@ def render_manage_panel():
                 new_title = st.text_input("العنوان", value=cur["title"], key=f"edit_title_{edit_key}")
                 new_desc = st.text_area("الوصف", value=cur["description"], key=f"edit_desc_{edit_key}")
                 new_url = st.text_input("الرابط (URL)", value=cur["url"], key=f"edit_url_{edit_key}")
+                new_embed = st.text_input(
+                    "رابط التضمين Embed URL (اختياري)",
+                    value=cur.get("embed_url", ""),
+                    key=f"edit_embed_{edit_key}",
+                    help="لو تركته فارغاً سيحاول النظام تحويل الرابط العادي تلقائياً.",
+                )
+                new_cat = st.text_input(
+                    "التصنيف", value=cur.get("category", "عام"), key=f"edit_cat_{edit_key}"
+                )
                 uploaded = st.file_uploader(
                     "إرفاق مستند",
                     type=["docx", "xlsx", "pdf", "vsdx", "pbix", "accdb", "msg", "txt"],
@@ -555,6 +597,8 @@ def render_manage_panel():
                         "title": new_title,
                         "description": new_desc,
                         "url": new_url,
+                        "embed_url": new_embed.strip(),
+                        "category": new_cat.strip() or "عام",
                         "files": files,
                     }
                     st.rerun()
@@ -564,12 +608,16 @@ def render_manage_panel():
             add_title = st.text_input("العنوان الرئيسي", key="add_title")
             add_desc = st.text_area("الوصف", key="add_desc")
             add_url = st.text_input("رابط الداشبورد", key="add_url")
+            add_embed = st.text_input("رابط التضمين Embed URL (اختياري)", key="add_embed")
+            add_cat = st.text_input("التصنيف", value="عام", key="add_cat")
             if st.button("إضافة المشروع", type="primary", key="add_project_btn"):
                 if add_name and add_url:
                     dashboards[add_name] = {
                         "title": add_title,
                         "description": add_desc,
                         "url": add_url,
+                        "embed_url": add_embed.strip(),
+                        "category": add_cat.strip() or "عام",
                         "files": [],
                     }
                     st.rerun()
@@ -632,56 +680,60 @@ def render_news(can_manage):
                             st.rerun()
 
 
-def render_projects():
+def render_projects(can_manage):
     dashboards = store["dashboards"]
-    names = list(dashboards.keys())
-    if not names:
+    if not dashboards:
         st.info("لا توجد مشاريع حالياً.")
         return
 
-    if st.session_state.selected_project not in dashboards:
-        st.session_state.selected_project = names[0]
-    selected = st.session_state.selected_project
-
     section_title("المشاريع والتقارير")
-    cols = st.columns(2)
-    for i, name in enumerate(names):
-        data = dashboards[name]
-        active = name == selected
-        files_n = len(data.get("files", []))
-        files_txt = f"{files_n} ملف مرفق" if files_n else "لا توجد ملفات مرفقة"
-        with cols[i % 2]:
-            st.markdown(
-                f"""
-                <div class="project-card {'active' if active else ''}">
-                    <div class="pn">{esc(name)}</div>
-                    <div class="pt">{esc(data['title'])}</div>
-                    <div class="pd">{esc(data['description'])}</div>
-                    <div class="pf">{files_txt}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                "معروض الآن" if active else "عرض التقرير",
-                key=f"open_{i}",
-                type="primary" if active else "secondary",
-            ):
-                st.session_state.selected_project = name
-                st.rerun()
 
-    # عارض التقرير المحدد
+    # ── الفلاتر: بحث نصي + تصنيف ──
+    categories = sorted({(d.get("category") or "عام") for d in dashboards.values()})
+    f1, f2 = st.columns([2, 1])
+    with f1:
+        query = st.text_input(
+            "بحث",
+            placeholder="اكتب جزءاً من اسم المشروع أو وصفه...",
+            key="project_query",
+        ).strip().lower()
+    with f2:
+        category = st.selectbox("التصنيف", ["الكل"] + categories, key="project_category")
+
+    def matches(name, d):
+        if category != "الكل" and (d.get("category") or "عام") != category:
+            return False
+        if not query:
+            return True
+        haystack = f"{name} {d.get('title', '')} {d.get('description', '')}".lower()
+        return query in haystack
+
+    options = [name for name, d in dashboards.items() if matches(name, d)]
+    st.caption(f"عدد النتائج: {len(options)} من {len(dashboards)}")
+
+    if not options:
+        st.info("لا توجد مشاريع مطابقة. غيّر كلمة البحث أو التصنيف.")
+        return
+
+    # لو المشروع المختار خرج من نتائج الفلتر نرجع لأول نتيجة
+    if st.session_state.get("project_select") not in options:
+        st.session_state["project_select"] = options[0]
+    selected = st.selectbox("اختر المشروع", options, key="project_select")
+
+    # ── عارض التقرير ──
     data = dashboards[selected]
     url = safe_url(data["url"])
+    embed_url = safe_url(data.get("embed_url", "")) or to_embed_url(data["url"])
     link_html = (
         f'<a class="btn-link" href="{esc(url, quote=True)}" target="_blank" rel="noopener">فتح في تبويب جديد</a>'
         if url
         else ""
     )
-    section_title("عرض التقرير")
+    files_n = len(data.get("files", []))
     st.markdown(
         f"""
         <div class="viewer-head">
+            <span class="badge">{esc(data.get('category') or 'عام')}</span>
             <div class="vt">{esc(data['title'])}</div>
             <div class="vd">{esc(data['description'])}</div>
             {link_html}
@@ -692,7 +744,7 @@ def render_projects():
 
     files = data.get("files", [])
     if files:
-        with st.expander(f"الملفات المرفقة ({len(files)})"):
+        with st.expander(f"الملفات المرفقة ({files_n})"):
             for j, f in enumerate(files):
                 st.download_button(
                     label=f"تحميل {f['name']}",
@@ -702,8 +754,22 @@ def render_projects():
                     key=f"dl_{selected}_{j}",
                 )
 
-    if url:
-        st.components.v1.iframe(url, height=820, scrolling=True)
+    if embed_url:
+        st.components.v1.iframe(embed_url, height=820, scrolling=True)
+        st.caption("لو التقرير لم يظهر هنا، افتحه من زر «فتح في تبويب جديد».")
+        if can_manage:
+            with st.expander("التقرير لا يظهر؟ خطوات الحل"):
+                st.markdown(
+                    f"""
+                    1. في Looker Studio: **File ← Embed report ← Enable embedding**، ثم انسخ **Embed URL** والصقه في خانة «رابط التضمين» في لوحة الإدارة.
+                    2. الروابط القصيرة `/s/...` لا تعمل داخل iframe، ويجب أن يكون الرابط على شكل `/embed/reporting/...`.
+                    3. تأكد من مشاركة التقرير (Share) مع المستخدمين أو المؤسسة، أو «Anyone with the link».
+                    4. إذا كان التقرير خاصاً بحسابات Google، يجب أن يكون المستخدم مسجّلاً الدخول بحساب Google في نفس المتصفح، وأن لا يمنع المتصفح الكوكيز الخارجية.
+
+                    الرابط المستخدم حالياً للعرض:
+                    """
+                )
+                st.code(embed_url, language="text")
     else:
         st.warning("رابط المشروع غير صالح. يجب أن يبدأ بـ http:// أو https://")
 
@@ -733,7 +799,7 @@ def render_portal(user_info, can_manage):
         render_manage_panel()
 
     render_news(can_manage)
-    render_projects()
+    render_projects(can_manage)
 
 
 # ──────────────────────────────────────────────────────────────
