@@ -140,10 +140,11 @@ if "company_logo" not in st.session_state:
 if "qa_logo" not in st.session_state:
     st.session_state.qa_logo = "https://raw.githubusercontent.com/ahmedgouda2727/QA-Dashboard-APP/main/QA.png"
 
+# تثبيت مفتاح سري ثابت لعدم تغيره عند إعادة تشغيل السيرفر
 if "totp_secret" not in st.session_state:
-    st.session_state.totp_secret = pyotp.random_base32()
+    st.session_state.totp_secret = "JBSWY3DPEHPK3PXP"
 
-# قائمة الأجهزة الموثوقة الديناميكية لتسجيل الأجهزة التي تمت المصادقة عليها
+# قائمة الأجهزة الموثوقة الديناميكية
 if "trusted_devices" not in st.session_state:
     st.session_state.trusted_devices = [{"name": "موبايل الشركة الرئيسي (مدير النظام)", "user": "admin"}]
 
@@ -179,7 +180,6 @@ if not st.session_state.logged_in:
                 st.session_state.logged_in = True
                 st.session_state.username = clean_username
                 
-                # إذا كان المشرف Admin يتجاوز المصادقة الثنائية تلقائياً
                 if users[clean_username]["role"] == "admin":
                     st.session_state.two_fa_passed = True
                 
@@ -201,12 +201,11 @@ elif st.session_state.logged_in and not st.session_state.device_trusted and not 
         
         if verify_btn:
             totp = pyotp.TOTP(st.session_state.totp_secret)
-            # valid_window=1 تمكن السيرفر من قبول الكود السابق واللاحق بفارق زمني لتجنب مشاكل توقيت الموبايل
-            if totp.verify(totp_code, valid_window=1):
+            # valid_window=2 لقبول الفارق الزمني بين الهاتف والسيرفر
+            if totp.verify(totp_code, valid_window=2):
                 st.session_state.two_fa_passed = True
                 if trust_this_device:
                     st.session_state.device_trusted = True
-                    # إضافة الجهاز تلقائياً لقائمة الأجهزة الموثوقة للآدمن
                     device_entry = {"name": f"{device_name_input} ({st.session_state.username})", "user": st.session_state.username}
                     if device_entry not in st.session_state.trusted_devices:
                         st.session_state.trusted_devices.append(device_entry)
@@ -214,7 +213,7 @@ elif st.session_state.logged_in and not st.session_state.device_trusted and not 
                 st.success("تم التحقق بنجاح!")
                 st.rerun()
             else:
-                st.error("رمز التحقق غير صحيح أو انتهت صلاحيته. يرجى المحاولة بالرمز الجديد.")
+                st.error("رمز التحقق غير صحيح أو انتهت صلاحيته. يرجى الانتظار لحين ظهور الرمز الجديد على تطبيق الهاتف والمحاولة مجدداً.")
 
 # 7. الشاشة الرئيسية بعد اجتياز الأمان
 else:
@@ -252,7 +251,6 @@ else:
         st.caption(f"الصلاحية: {role_display}")
         st.write("---")
         
-        # زر إعدادات التحقق والنظام (متاح للآدمن فقط في الـ Sidebar)
         if is_admin:
             if st.button("⚙️ إعدادات التحقق والنظام (Admin)"):
                 st.session_state.show_admin_settings = not st.session_state.show_admin_settings
@@ -279,13 +277,12 @@ else:
         
         tab_sec1, tab_sec2 = st.tabs(["📱 إعدادات الأمان والتحقق الثنائي", "👥 لوحة تحكم المستخدمين والصلاحيات"])
         
-        # 1. إعدادات الأمان والـ Authenticator والأجهزة الموثوقة
         with tab_sec1:
             st.subheader("خطوات تسجيل موبايل الشركة في Google Authenticator:")
             st.markdown("""
             1. حمل تطبيق **Google Authenticator** على هاتفك.
             2. افتح التطبيق واضغط على زر الإضافة **(+)** ثم اختر **مسح رمز الاستجابة السريعة (Scan a QR code)**.
-            3. امسح كود الـ QR الموجود بالأسفل، أو أدخل المفتاح السري يدويًا.
+            3. امسح كود الـ QR الموجود بالأسفل مرة واحدة فقط، وسيبقى متوافقاً دائماً.
             """)
             
             totp_uri = pyotp.totp.TOTP(st.session_state.totp_secret).provisioning_uri(
@@ -300,11 +297,6 @@ else:
             
             st.code(st.session_state.totp_secret, language="text")
             
-            if st.button("🔄 توليد مفتاح سري جديد وتغييره"):
-                st.session_state.totp_secret = pyotp.random_base32()
-                st.success("تم تحديث مفتاح المصادقة بنجاح!")
-                st.rerun()
-                
             st.markdown("---")
             st.subheader("📱 إدارة الأجهزة المقترنة (Trusted Devices)")
             st.write("هنا تظهر الأجهزة التي تمت الموافقة عليها وثقتها بنجاح أثناء تسجيل الدخول:")
@@ -322,7 +314,6 @@ else:
             else:
                 st.info("لا توجد أجهزة موثوقة مسجلة حالياً.")
 
-        # 2. إدارة المستخدمين والصلاحيات
         with tab_sec2:
             st.subheader("👥 إدارة المستخدمين والصلاحيات")
             
@@ -363,7 +354,7 @@ else:
                     st.success("تم حذف المستخدم بنجاح!")
                     st.rerun()
 
-    # الواجهة الرئيسية (Main Portal) للمشاريع والأخبار
+    # الواجهة الرئيسية (Main Portal)
     else:
         if is_admin or is_manager:
             with st.expander("⚙️ لوحة تحكم المشاريع والملفات والأخبار"):
@@ -500,7 +491,7 @@ else:
                         mime="application/octet-stream"
                     )
             else:
-                st.markdown('<p class="rtl-right" style="color: gray; font-size: 16px;">لا توجد ملفات مرفقة حالياً لهذا المشروع.</p>', unsafe_allow_html=True)
+                st.markdown('<p class="rtl-right" style="color: gray; font-size: 16px;">لا توجد ملفات مرفقة حالياً لهذا المشروع.</p>', unsafe_allow_html=Test)
             
             st.markdown(f'<p class="rtl-right">🔗 <b>رابط مباشر:</b> <a href="{dash_data["url"]}" target="_blank">اضغط هنا لفتح المشروع في تبويب جديد</a></p>', unsafe_allow_html=True)
             
