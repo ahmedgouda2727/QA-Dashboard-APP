@@ -113,17 +113,19 @@ DEFAULT_NEWS = [
     }
 ]
 
-# 3. حسابات المستخدمين
-USERS = {
-    "admin": {"password": "123", "name": "مدير النظام", "role": "admin"},
-    "hossam.saeed@fnrco.com.sa": {"password": "HS123", "name": "حسام سعيد", "role": "user"},
-    "abdelrahman.lashine@fnrco.com.sa": {"password": "AL123", "name": "عبد الرحمن لاشين", "role": "user"},
-    "yassmen.khaled@fnrco.com.sa": {"password": "HS123", "name": "ياسمين خالد", "role": "user"},
-    "kenzy.hisham@fnrco.com.sa": {"password": "KH123", "name": "كنزي هشام", "role": "user"},
-    "lamia.adel@fnrco.com.sa": {"password": "LA123", "name": "لمياء عادل", "role": "user"},
-    "nancy.safwat@fnrco.com.sa": {"password": "NS123", "name": "نانسي صفوت", "role": "user"},
-    "abdallah.zaukzouk@fnrco.com.sa": {"password": "AZ123", "name": "عبد الله زقزوق", "role": "user"}
-}
+# 3. حسابات المستخدمين مع الصلاحيات (admin, manager, user)
+if "users_db" not in st.session_state:
+    st.session_state.users_db = {
+        "admin": {"password": "123", "name": "مدير النظام", "role": "admin"},
+        "manager.qa@fnrco.com.sa": {"password": "M123", "name": "مدير القسم", "role": "manager"},
+        "hossam.saeed@fnrco.com.sa": {"password": "HS123", "name": "حسام سعيد", "role": "user"},
+        "abdelrahman.lashine@fnrco.com.sa": {"password": "AL123", "name": "عبد الرحمن لاشين", "role": "user"},
+        "yassmen.khaled@fnrco.com.sa": {"password": "HS123", "name": "ياسمين خالد", "role": "user"},
+        "kenzy.hisham@fnrco.com.sa": {"password": "KH123", "name": "كنزي هشام", "role": "user"},
+        "lamia.adel@fnrco.com.sa": {"password": "LA123", "name": "لمياء عادل", "role": "user"},
+        "nancy.safwat@fnrco.com.sa": {"password": "NS123", "name": "نانسي صفوت", "role": "user"},
+        "abdallah.zaukzouk@fnrco.com.sa": {"password": "AZ123", "name": "عبد الله زقزوق", "role": "user"}
+    }
 
 # 4. إدارة حالة التطبيق (Session State)
 if "dashboards" not in st.session_state:
@@ -141,6 +143,10 @@ if "qa_logo" not in st.session_state:
 if "totp_secret" not in st.session_state:
     st.session_state.totp_secret = pyotp.random_base32()
 
+# قائمة الأجهزة الموثوقة (المقترنة)
+if "trusted_devices" not in st.session_state:
+    st.session_state.trusted_devices = ["موبايل الشركة الرئيسي (مدير النظام)"]
+
 if "device_trusted" not in st.session_state:
     st.session_state.device_trusted = False
 
@@ -152,6 +158,10 @@ if "two_fa_passed" not in st.session_state:
 
 if "username" not in st.session_state:
     st.session_state.username = ""
+
+# صفحة عرض إعدادات الآدمن المنفصلة
+if "show_admin_settings" not in st.session_state:
+    st.session_state.show_admin_settings = False
 
 # 5. شاشة تسجيل الدخول
 if not st.session_state.logged_in:
@@ -165,12 +175,13 @@ if not st.session_state.logged_in:
         
         if submit_button:
             clean_username = username_input.strip().lower()
-            if clean_username in USERS and USERS[clean_username]["password"] == password_input:
+            users = st.session_state.users_db
+            if clean_username in users and users[clean_username]["password"] == password_input:
                 st.session_state.logged_in = True
                 st.session_state.username = clean_username
                 
-                # إذا كان المستخدم هو Admin يتجاوز الـ 2FA فوراً وبأي مكان
-                if USERS[clean_username]["role"] == "admin":
+                # إذا كان المشرف Admin يتجاوز المصادقة الثنائية تلقائياً
+                if users[clean_username]["role"] == "admin":
                     st.session_state.two_fa_passed = True
                 
                 st.success("تم تسجيل الدخول بنجاح!")
@@ -178,10 +189,10 @@ if not st.session_state.logged_in:
             else:
                 st.error("اسم المستخدم أو كلمة المرور غير صحيحة.")
 
-# 6. شاشة التحقق الثنائي عبر Google Authenticator (للمستخدمين العاديين فقط)
+# 6. شاشة التحقق الثنائي للمستخدمين الآخرين
 elif st.session_state.logged_in and not st.session_state.device_trusted and not st.session_state.two_fa_passed:
     st.title("🛡️ التحقق الثنائي الأمني (Google Authenticator)")
-    st.write("هذا الجهاز غير موثوق. يرجى إدخال رمز التحقق المكون من 6 أرقام من تطبيق Google Authenticator المعتمد لدى الشركة:")
+    st.write("هذا الجهاز غير موثوق. يرجى إدخال رمز التحقق المكون من 6 أرقام من تطبيق Google Authenticator:")
     
     with st.form("2fa_form"):
         totp_code = st.text_input("رمز التحقق (6 أرقام):", max_chars=6)
@@ -199,11 +210,13 @@ elif st.session_state.logged_in and not st.session_state.device_trusted and not 
             else:
                 st.error("رمز التحقق غير صحيح أو انتهت صلاحيته.")
 
-# 7. الشاشة الرئيسية بعد اجتياز الأمان بالكامل
+# 7. الشاشة الرئيسية بعد اجتياز الأمان
 else:
     current_user_key = st.session_state.username
-    user_info = USERS[current_user_key]
-    is_admin = user_info["role"] == "admin"
+    user_info = st.session_state.users_db[current_user_key]
+    user_role = user_info["role"] # admin, manager, user
+    is_admin = (user_role == "admin")
+    is_manager = (user_role == "manager")
     
     # الشريط الجانبي (Sidebar)
     with st.sidebar:
@@ -227,182 +240,273 @@ else:
                     st.rerun()
                     
         st.write("---")
-        
         st.write(f"مرحباً بك، **{user_info['name']}** 👋")
-        st.caption(f"نوع الحساب: {'مدير النظام (Admin)' if is_admin else 'مستخدم (User)'}")
+        
+        role_display = "مدير النظام (Admin)" if is_admin else ("مدير القسم (Manager)" if is_manager else "موظف (User)")
+        st.caption(f"الصلاحية: {role_display}")
         st.write("---")
+        
+        # زر إعدادات التحقق والنظام (متاح للآدمن فقط في الـ Sidebar)
+        if is_admin:
+            if st.button("⚙️ إعدادات التحقق والنظام (Admin)"):
+                st.session_state.show_admin_settings = not st.session_state.show_admin_settings
+                st.rerun()
+            st.write("---")
         
         if st.button("تسجيل الخروج"):
             st.session_state.logged_in = False
             st.session_state.two_fa_passed = False
+            st.session_state.show_admin_settings = False
             st.session_state.username = ""
             st.rerun()
 
-    # لوحة تحكم المدير
-    if is_admin:
-        with st.expander("⚙️ لوحة تحكم المدير (إدارة المشاريع، الملفات، الأخبار، وإعدادات الأمان)"):
-            tab1, tab2, tab3, tab4 = st.tabs([
-                "تعديل مشروع وإرفاق ملفات", 
-                "إضافة مشروع جديد", 
-                "إضافة خبر جديد (سلايدر)",
-                "🔒 إعدادات Google Authenticator (للمدير فقط)"
-            ])
+    # صفحة إعدادات الآدمن المنفصلة (إذا ضغط على الزر في الـ Sidebar)
+    if is_admin and st.session_state.show_admin_settings:
+        st.title("⚙️ لوحة إعدادات النظام والأمان المركزية")
+        st.write("هذه اللوحة مخصصة للآدمن فقط لإدارة إعدادات الأجهزة، المصادقة الثنائية، وصلاحيات المستخدمين.")
+        
+        if st.button("⬅️ العودة للرئيسية"):
+            st.session_state.show_admin_settings = False
+            st.rerun()
             
-            with tab1:
-                edit_key = st.selectbox("اختر المشروع للتعديل:", list(st.session_state.dashboards.keys()), key="edit_select")
-                if edit_key:
-                    current_dash = st.session_state.dashboards[edit_key]
-                    new_title = st.text_input("العنوان:", value=current_dash["title"], key="edit_title")
-                    new_desc = st.text_area("الوصف والشرح:", value=current_dash["description"], key="edit_desc")
-                    new_url = st.text_input("الرابط (URL):", value=current_dash["url"], key="edit_url")
-                    
-                    st.write("📎 **إرفاق مستند أو ملف:**")
-                    uploaded_file = st.file_uploader("اختر الملف للرفع:", type=["docx", "xlsx", "pdf", "vsdx", "pbix", "accdb", "msg", "txt"], key=f"up_{edit_key}")
-                    
-                    if st.button("حفظ التعديلات ورفع الملف"):
-                        files_list = current_dash.get("files", [])
-                        if uploaded_file is not None:
-                            files_list.append({"name": uploaded_file.name, "data": uploaded_file.getvalue()})
+        st.markdown("---")
+        
+        tab_sec1, tab_sec2 = st.tabs(["📱 إعدادات الأمان والتحقق الثنائي", "👥 لوحة تحكم المستخدمين والصلاحيات"])
+        
+        # 1. إعدادات الأمان والـ Authenticator
+        with tab_sec1:
+            st.subheader("خطوات تسجيل موبايل الشركة في Google Authenticator:")
+            st.markdown("""
+            1. حمل تطبيق **Google Authenticator** على هاتف الشركة أو هاتفك المعتمد من المتجر.
+            2. افتح التطبيق واضغط على زر الإضافة **(+)** ثم اختر **مسح رمز الاستجابة السريعة (Scan a QR code)**.
+            3. امسح كود الـ QR الموجود بالأسفل، أو أدخل المفتاح السري يدويًا.
+            4. سيظهر لك كود مكون من 6 أرقام يتغير كل 30 ثانية لتسجيل الأجهزة بأمان.
+            """)
+            
+            totp_uri = pyotp.totp.TOTP(st.session_state.totp_secret).provisioning_uri(
+                name="Linrco-QA-Admin",
+                issuer_name="Linrco Quality Assurance"
+            )
+            
+            img_qr = qrcode.make(totp_uri)
+            buf = io.BytesIO()
+            img_qr.save(buf)
+            st.image(buf.getvalue(), width=230)
+            
+            st.code(st.session_state.totp_secret, language="text")
+            
+            if st.button("🔄 توليد مفتاح سري جديد وتغييره"):
+                st.session_state.totp_secret = pyotp.random_base32()
+                st.success("تم تحديث مفتاح المصادقة بنجاح!")
+                st.rerun()
+                
+            st.markdown("---")
+            st.subheader("📱 إدارة الأجهزة المقترنة (Trusted Devices)")
+            st.write("الأجهزة التي تمت الموافقة عليها وثقتها:")
+            
+            for d_idx, dev_name in enumerate(st.session_state.trusted_devices):
+                col_d1, col_d2 = st.columns([4, 1])
+                with col_d1:
+                    st.write(f"🔹 {dev_name}")
+                with col_d2:
+                    if st.button("إزالة الجهاز", key=f"del_dev_{d_idx}"):
+                        st.session_state.trusted_devices.pop(d_idx)
+                        st.success("تم إزالة الجهاز من القائمة!")
+                        st.rerun()
                         
-                        st.session_state.dashboards[edit_key] = {
-                            "title": new_title,
-                            "description": new_desc,
-                            "url": new_url,
-                            "files": files_list
-                        }
-                        st.success("تم حفظ التعديلات وتحديث الملفات بنجاح!")
-                        st.rerun()
-            
-            with tab2:
-                add_name = st.text_input("اسم المشروع القصير (في القائمة):", key="add_name")
-                add_title = st.text_input("العنوان الرئيسي:", key="add_title")
-                add_desc = st.text_area("الوصف والشرح التفصيلي:", key="add_desc")
-                add_url = st.text_input("رابط الداشبورد أو المشروع:", key="add_url")
-                
-                if st.button("إضافة المشروع"):
-                    if add_name and add_url:
-                        st.session_state.dashboards[add_name] = {
-                            "title": add_title,
-                            "description": add_desc,
-                            "url": add_url,
-                            "files": []
-                        }
-                        st.success("تمت إضافة المشروع الجديد بنجاح!")
-                        st.rerun()
-                    else:
-                        st.warning("يرجى إدخال اسم المشروع والرابط على الأقل.")
-
-            with tab3:
-                news_title = st.text_input("عنوان الخبر أو التحديث:", key="news_t")
-                news_content = st.text_area("محتوى الخبر وتفاصيله:", key="news_c")
-                
-                st.write("🖼️ **صورة الخبر:**")
-                news_img_file = st.file_uploader("اختر صورة الخبر:", type=["png", "jpg", "jpeg"], key="news_img_upload")
-                
-                if st.button("نشر الخبر في السلايدر"):
-                    if news_title and news_content:
-                        img_path = "https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&auto=format&fit=crop&q=60"
-                        if news_img_file is not None:
-                            img_path = enhance_image_ai_style(news_img_file)
-                            
-                        st.session_state.news_list.append({
-                            "title": news_title,
-                            "content": news_content,
-                            "image": img_path
-                        })
-                        st.success("تم نشر الخبر بنجاح!")
-                        st.rerun()
-                    else:
-                        st.warning("يرجى إدخال عنوان ومحتوى الخبر.")
-
-            # إعدادات الـ Authenticator حصرياً للـ Admin من الداخل
-            with tab4:
-                st.write("### 📱 ربط تطبيق Google Authenticator بموبايل الإدارة")
-                st.write("قم بمسح كود الـ QR الآتي باستخدام تطبيق Google Authenticator على موبايلك لربط أجهزة الموظفين بالنظام:")
-                
-                totp_uri = pyotp.totp.TOTP(st.session_state.totp_secret).provisioning_uri(
-                    name="Linrco-QA-Admin",
-                    issuer_name="Linrco Quality Assurance"
-                )
-                
-                img_qr = qrcode.make(totp_uri)
-                buf = io.BytesIO()
-                img_qr.save(buf)
-                st.image(buf.getvalue(), width=250)
-                
-                st.code(st.session_state.totp_secret, language="text")
-                st.info("💡 يمكنك نسخ المفتاح السري بالأعلى وإدخاله يدويًا في تطبيق المصادقة على موبايلك إذا أردت.")
-                
-                if st.button("🔄 توليد مفتاح سري جديد (إبطال الموبايلات السابقة)"):
-                    st.session_state.totp_secret = pyotp.random_base32()
-                    st.success("تم تحديث مفتاح المصادقة بنجاح!")
+            new_dev = st.text_input("إضافة جهاز جديد مقترن (اسم المتصفح أو الموبايل):")
+            if st.button("إضافة الجهاز لقائمة الثقة"):
+                if new_dev:
+                    st.session_state.trusted_devices.append(new_dev)
+                    st.success("تمت إضافة الجهاز بنجاح!")
                     st.rerun()
 
-    # الواجهة الرئيسية (Main Portal)
-    st.title("📊 البوابة المركزية لتقارير ومشاريع ضمان الجودة")
-    
-    st.markdown('<p class="rtl-right">مرحباً بك في منصة متابعة المشاريع والتقارير التحليلية لشركة ليناركو.</p>', unsafe_allow_html=True)
-    
-    st.markdown("---")
-    st.subheader("📰 آخر الأخبار والتحديثات الإدارية")
-    
-    if st.session_state.news_list:
-        cols = st.columns(len(st.session_state.news_list) if len(st.session_state.news_list) <= 2 else 2)
-        for idx, news in enumerate(st.session_state.news_list):
-            with cols[idx % len(cols)]:
-                with st.container(border=True):
-                    if news.get("image"):
-                        st.image(news["image"], use_column_width=True)
-                    st.markdown(f"#### {news['title']}")
-                    st.write(news['content'])
+        # 2. إدارة المستخدمين والصلاحيات
+        with tab_sec2:
+            st.subheader("👥 إدارة المستخدمين والصلاحيات")
+            st.write("إضافة يوزرات جديدة، تعديلها، أو مسحها، وتحديد الصلاحيات:")
+            
+            # عرض جدول اليوزرات الحالية
+            users_list = []
+            for uname, udata in st.session_state.users_db.items():
+                role_ar = "أدمن (Admin)" if udata["role"] == "admin" else ("مدير (Manager)" if udata["role"] == "manager" else "موظف (User)")
+                users_list.append({"المستخدم / الإيميل": uname, "الاسم": udata["name"], "الصلاحية": role_ar})
+            
+            st.table(users_list)
+            
+            st.markdown("### ➕ إضافة مستخدم جديد")
+            with st.form("add_user_form"):
+                new_email = st.text_input("البريد الإلكتروني / اسم المستخدم الجديد:")
+                new_pass = st.text_input("كلمة المرور:", type="password")
+                new_name = st.text_input("اسم المستخدم:")
+                new_role_choice = st.selectbox("تحديد الصلاحية:", ["موظف", "مدير", "أدمن"])
+                add_user_btn = st.form_submit_button("إضافة المستخدم للنظام")
+                
+                if add_user_btn:
+                    if new_email and new_pass and new_name:
+                        role_map = {"أدمن": "admin", "مدير": "manager", "موظف": "user"}
+                        clean_new_email = new_email.strip().lower()
+                        st.session_state.users_db[clean_new_email] = {
+                            "password": new_pass,
+                            "name": new_name,
+                            "role": role_map[new_role_choice]
+                        }
+                        st.success(f"تم إضافة المستخدم {new_name} بنجاح!")
+                        st.rerun()
+                    else:
+                        st.warning("يرجى ملء جميع الحقول المطلوبة.")
+            
+            st.markdown("### 🗑️ مسح مستخدم")
+            del_user_target = st.selectbox("اختر المستخدم للحذف:", [u for u in st.session_state.users_db.keys() if u != "admin"])
+            if st.button("حذف المستخدم المختار"):
+                if del_user_target in st.session_state.users_db:
+                    del st.session_state.users_db[del_user_target]
+                    st.success("تم حذف المستخدم بنجاح!")
+                    st.rerun()
+
+    # الواجهة الرئيسية (Main Portal) للمشاريع والأخبار
+    else:
+        # لوحة تحكم المدير أو المدير التنفيذي (Admin & Manager) لإدارة المشاريع والأخبار
+        if is_admin or is_manager:
+            with st.expander("⚙️ لوحة تحكم المشاريع والملفات والأخبار"):
+                tab1, tab2, tab3 = st.tabs([
+                    "تعديل مشروع وإرفاق ملفات", 
+                    "إضافة مشروع جديد", 
+                    "إضافة خبر جديد (سلايدر)"
+                ])
+                
+                with tab1:
+                    edit_key = st.selectbox("اختر المشروع للتعديل:", list(st.session_state.dashboards.keys()), key="edit_select")
+                    if edit_key:
+                        current_dash = st.session_state.dashboards[edit_key]
+                        new_title = st.text_input("العنوان:", value=current_dash["title"], key="edit_title")
+                        new_desc = st.text_area("الوصف والشرح:", value=current_dash["description"], key="edit_desc")
+                        new_url = st.text_input("الرابط (URL):", value=current_dash["url"], key="edit_url")
+                        
+                        st.write("📎 **إرفاق مستند أو ملف:**")
+                        uploaded_file = st.file_uploader("اختر الملف للرفع:", type=["docx", "xlsx", "pdf", "vsdx", "pbix", "accdb", "msg", "txt"], key=f"up_{edit_key}")
+                        
+                        if st.button("حفظ التعديلات ورفع الملف"):
+                            files_list = current_dash.get("files", [])
+                            if uploaded_file is not None:
+                                files_list.append({"name": uploaded_file.name, "data": uploaded_file.getvalue()})
+                            
+                            st.session_state.dashboards[edit_key] = {
+                                "title": new_title,
+                                "description": new_desc,
+                                "url": new_url,
+                                "files": files_list
+                            }
+                            st.success("تم حفظ التعديلات وتحديث الملفات بنجاح!")
+                            st.rerun()
+                
+                with tab2:
+                    add_name = st.text_input("اسم المشروع القصير (في القائمة):", key="add_name")
+                    add_title = st.text_input("العنوان الرئيسي:", key="add_title")
+                    add_desc = st.text_area("الوصف والشرح التفصيلي:", key="add_desc")
+                    add_url = st.text_input("رابط الداشبورد أو المشروع:", key="add_url")
                     
-                    if is_admin:
-                        with st.expander(f"⚙️ تغيير صورة الخبر ({idx+1})"):
-                            changed_img = st.file_uploader("اختر صورة جديدة:", type=["png", "jpg", "jpeg"], key=f"news_ch_{idx}")
-                            if changed_img is not None:
-                                if st.button(f"حفظ الصورة الجديدة للخبر {idx+1}", key=f"btn_ch_{idx}"):
-                                    st.session_state.news_list[idx]["image"] = enhance_image_ai_style(changed_img)
-                                    st.success("تم تحديث صورة الخبر بنجاح!")
-                                    st.rerun()
+                    if st.button("إضافة المشروع"):
+                        if add_name and add_url:
+                            st.session_state.dashboards[add_name] = {
+                                "title": add_title,
+                                "description": add_desc,
+                                "url": add_url,
+                                "files": []
+                            }
+                            st.success("تمت إضافة المشروع الجديد بنجاح!")
+                            st.rerun()
+                        else:
+                            st.warning("يرجى إدخال اسم المشروع والرابط على الأقل.")
 
-    st.markdown("---")
-    st.subheader("📁 استعراض المشاريع والتقارير المتاحة")
-    
-    for proj_name, proj_data in st.session_state.dashboards.items():
-        with st.container():
-            st.markdown(f"""
-                <div class="project-card">
-                    <h3>📌 {proj_name}</h3>
-                    <p><b>العنوان:</b> {proj_data['title']}</p>
-                    <p><b>نبذة:</b> {proj_data['description']}</p>
-                </div>
-            """, unsafe_allow_html=True)
+                with tab3:
+                    news_title = st.text_input("عنوان الخبر أو التحديث:", key="news_t")
+                    news_content = st.text_area("محتوى الخبر وتفاصيله:", key="news_c")
+                    
+                    st.write("🖼️ **صورة الخبر:**")
+                    news_img_file = st.file_uploader("اختر صورة الخبر:", type=["png", "jpg", "jpeg"], key="news_img_upload")
+                    
+                    if st.button("نشر الخبر في السلايدر"):
+                        if news_title and news_content:
+                            img_path = "https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&auto=format&fit=crop&q=60"
+                            if news_img_file is not None:
+                                img_path = enhance_image_ai_style(news_img_file)
+                                
+                            st.session_state.news_list.append({
+                                "title": news_title,
+                                "content": news_content,
+                                "image": img_path
+                            })
+                            st.success("تم نشر الخبر بنجاح!")
+                            st.rerun()
+                        else:
+                            st.warning("يرجى إدخال عنوان ومحتوى الخبر.")
 
-    st.markdown("---")
-    selected_key = st.selectbox("🎯 اختر المشروع المطلوب عرضه بالأسفل:", list(st.session_state.dashboards.keys()))
-    
-    if selected_key:
-        dash_data = st.session_state.dashboards[selected_key]
+        # الواجهة الرئيسية (Main Portal)
+        st.title("📊 البوابة المركزية لتقارير ومشاريع ضمان الجودة")
+        st.markdown(f'<p class="rtl-right">مرحباً بك في منصة متابعة المشاريع والتقارير التحليلية لشركة ليناركو ({user_info["name"]}).</p>', unsafe_allow_html=True)
         
         st.markdown("---")
-        st.header(dash_data["title"])
+        st.subheader("📰 آخر الأخبار والتحديثات الإدارية")
         
-        st.info(f"📝 **الشرح والتفاصيل:**\n\n{dash_data['description']}")
-        
-        if dash_data.get("files"):
-            st.markdown("### 📥 الملفات والمستندات المرفقة بالمشروع:")
-            for file_item in dash_data["files"]:
-                st.download_button(
-                    label=f"📥 تحميل الملف المرفق: {file_item['name']}",
-                    data=file_item["data"],
-                    file_name=file_item["name"],
-                    mime="application/octet-stream"
-                )
-        else:
-            st.markdown('<p class="rtl-right" style="color: gray; font-size: 16px;">لا توجد ملفات مرفقة حالياً لهذا المشروع.</p>', unsafe_allow_html=True)
-        
-        st.markdown(f'<p class="rtl-right">🔗 <b>رابط مباشر:</b> <a href="{dash_data["url"]}" target="_blank">اضغط هنا لفتح المشروع في تبويب جديد</a></p>', unsafe_allow_html=True)
-        
+        if st.session_state.news_list:
+            cols = st.columns(len(st.session_state.news_list) if len(st.session_state.news_list) <= 2 else 2)
+            for idx, news in enumerate(st.session_state.news_list):
+                with cols[idx % len(cols)]:
+                    with st.container(border=True):
+                        if news.get("image"):
+                            st.image(news["image"], use_column_width=True)
+                        st.markdown(f"#### {news['title']}")
+                        st.write(news['content'])
+                        
+                        # تغيير صورة الخبر (متاح للأدمن والمدير)
+                        if is_admin or is_manager:
+                            with st.expander(f"⚙️ تغيير صورة الخبر ({idx+1})"):
+                                changed_img = st.file_uploader("اختر صورة جديدة:", type=["png", "jpg", "jpeg"], key=f"news_ch_{idx}")
+                                if changed_img is not None:
+                                    if st.button(f"حفظ الصورة الجديدة للخبر {idx+1}", key=f"btn_ch_{idx}"):
+                                        st.session_state.news_list[idx]["image"] = enhance_image_ai_style(changed_img)
+                                        st.success("تم تحديث صورة الخبر بنجاح!")
+                                        st.rerun()
+
         st.markdown("---")
+        st.subheader("📁 استعراض المشاريع والتقارير المتاحة")
         
-        st.components.v1.iframe(dash_data["url"], width=1200, height=800, scrolling=True)
+        for proj_name, proj_data in st.session_state.dashboards.items():
+            with st.container():
+                st.markdown(f"""
+                    <div class="project-card">
+                        <h3>📌 {proj_name}</h3>
+                        <p><b>العنوان:</b> {proj_data['title']}</p>
+                        <p><b>نبذة:</b> {proj_data['description']}</p>
+                    </div>
+                """, unsafe_allow_html=True)
+
+        st.markdown("---")
+        selected_key = st.selectbox("🎯 اختر المشروع المطلوب عرضه بالأسفل:", list(st.session_state.dashboards.keys()))
+        
+        if selected_key:
+            dash_data = st.session_state.dashboards[selected_key]
+            
+            st.markdown("---")
+            st.header(dash_data["title"])
+            
+            st.info(f"📝 **الشرح والتفاصيل:**\n\n{dash_data['description']}")
+            
+            if dash_data.get("files"):
+                st.markdown("### 📥 الملفات والمستندات المرفقة بالمشروع:")
+                for file_item in dash_data["files"]:
+                    st.download_button(
+                        label=f"📥 تحميل الملف المرفق: {file_item['name']}",
+                        data=file_item["data"],
+                        file_name=file_item["name"],
+                        mime="application/octet-stream"
+                    )
+            else:
+                st.markdown('<p class="rtl-right" style="color: gray; font-size: 16px;">لا توجد ملفات مرفقة حالياً لهذا المشروع.</p>', unsafe_allow_html=True)
+            
+            st.markdown(f'<p class="rtl-right">🔗 <b>رابط مباشر:</b> <a href="{dash_data["url"]}" target="_blank">اضغط هنا لفتح المشروع في تبويب جديد</a></p>', unsafe_allow_html=True)
+            
+            st.markdown("---")
+            
+            st.components.v1.iframe(dash_data["url"], width=1200, height=800, scrolling=True)
