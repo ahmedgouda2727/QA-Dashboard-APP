@@ -140,7 +140,7 @@ if "company_logo" not in st.session_state:
 if "qa_logo" not in st.session_state:
     st.session_state.qa_logo = "https://raw.githubusercontent.com/ahmedgouda2727/QA-Dashboard-APP/main/QA.png"
 
-# تثبيت مفتاح سري ثابت لعدم تغيره عند إعادة تشغيل السيرفر
+# تثبيت مفتاح سري ثابت لتجنب أي مشاكل في التوافق
 if "totp_secret" not in st.session_state:
     st.session_state.totp_secret = "JBSWY3DPEHPK3PXP"
 
@@ -201,7 +201,6 @@ elif st.session_state.logged_in and not st.session_state.device_trusted and not 
         
         if verify_btn:
             totp = pyotp.TOTP(st.session_state.totp_secret)
-            # valid_window=2 لقبول الفارق الزمني بين الهاتف والسيرفر
             if totp.verify(totp_code, valid_window=2):
                 st.session_state.two_fa_passed = True
                 if trust_this_device:
@@ -491,7 +490,7 @@ else:
                         mime="application/octet-stream"
                     )
             else:
-                st.markdown('<p class="rtl-right" style="color: gray; font-size: 16px;">لا توجد ملفات مرفقة حالياً لهذا المشروع.</p>', unsafe_allow_html=Test)
+                st.markdown('<p class="rtl-right" style="color: gray; font-size: 16px;">لا توجد ملفات مرفقة حالياً لهذا المشروع.</p>', unsafe_allow_html=True)
             
             st.markdown(f'<p class="rtl-right">🔗 <b>رابط مباشر:</b> <a href="{dash_data["url"]}" target="_blank">اضغط هنا لفتح المشروع في تبويب جديد</a></p>', unsafe_allow_html=True)
             
