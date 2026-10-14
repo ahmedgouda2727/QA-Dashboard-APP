@@ -5,7 +5,7 @@ import io
 # إعدادات صفحة الويب
 st.set_page_config(page_title="لوحة تحكم قسم الجودة - ليناركو", page_icon="📊", layout="wide")
 
-# تخصيص وتكبير الخطوط، ضبط اتجاه اليمين لليسار، وإصلاح محاذاة الروابط والعناصر بالكامل
+# تخصيص وتكبير الخطوط، قلب الاتجاه إلى RTL، ونقل الشريط الجانبي لليمين
 st.markdown("""
     <style>
     /* إخفاء شريط أدوات Streamlit العلوي (Toolbar) */
@@ -13,24 +13,24 @@ st.markdown("""
     #MainMenu {visibility: hidden !important;}
     footer {visibility: hidden !important;}
     
-    /* فرض الاتجاه من اليمين لليسار والمحاذاة لليمين على كافة عناصر الصفحة بلا استثناء */
-    html, body, [class*="css"], .stMarkdown, p, span, div, label {
+    /* جعل الاتجاه من اليمين لليسار لكافة عناصر الصفحة والنصوص العربية */
+    html, body, [class*="css"] {
         direction: rtl !important;
         text-align: right !important;
         font-family: 'Cairo', Tahoma, sans-serif !important;
         font-size: 20px !important;
     }
     
-    /* إصلاح محاذاة العناوين والروابط لتكون من اليمين تماماً */
-    h1, h2, h3, h4, h5, h6, a {
+    /* تكبير خط العناوين وتثبيت محاذاتها لليمين */
+    h1, h2, h3, h4, h5, h6 {
         text-align: right !important;
-        direction: rtl !important;
+        color: #8B0000;
     }
-    h1 { font-size: 38px !important; color: #8B0000; }
+    h1 { font-size: 38px !important; }
     h2 { font-size: 30px !important; color: #333333; }
     h3 { font-size: 24px !important; }
 
-    /* نقل الشريط الجانبي (Sidebar) إلى اليمين */
+    /* نقل الشريط الجانبي (Sidebar) إلى اليمين وعكس اتجاهه */
     [data-testid="stSidebar"] {
         right: 0px !important;
         left: auto !important;
@@ -38,8 +38,8 @@ st.markdown("""
         text-align: right !important;
     }
     
-    /* محاذاة محتوى الحقول وأزرار التحميل لليمين */
-    .stSelectbox, .stTextInput, .stTextArea, .stFileUploader, .stDownloadButton {
+    /* تعديل مكان محتوى الصفحة الرئيسية ليترك مساحة للشريط الجانبي الأيمن */
+    .main .block-container {
         direction: rtl !important;
         text-align: right !important;
     }
@@ -53,7 +53,11 @@ st.markdown("""
         margin-bottom: 20px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         text-align: right !important;
-        direction: rtl !important;
+    }
+    
+    /* ضبط محاذاة الحقول والتسميات */
+    .stSelectbox, .stTextInput, .stTextArea, .stFileUploader {
+        text-align: right !important;
     }
     </style>
 """, unsafe_allow_html=True)
