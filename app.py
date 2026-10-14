@@ -168,15 +168,20 @@ if not st.session_state.logged_in:
             if clean_username in USERS and USERS[clean_username]["password"] == password_input:
                 st.session_state.logged_in = True
                 st.session_state.username = clean_username
-                st.success("تم التحقق من بيانات الدخول بنجاح!")
+                
+                # إذا كان المستخدم هو Admin يتجاوز الـ 2FA فوراً وبأي مكان
+                if USERS[clean_username]["role"] == "admin":
+                    st.session_state.two_fa_passed = True
+                
+                st.success("تم تسجيل الدخول بنجاح!")
                 st.rerun()
             else:
                 st.error("اسم المستخدم أو كلمة المرور غير صحيحة.")
 
-# 6. شاشة التحقق الثنائي عبر Google Authenticator
+# 6. شاشة التحقق الثنائي عبر Google Authenticator (للمستخدمين العاديين فقط)
 elif st.session_state.logged_in and not st.session_state.device_trusted and not st.session_state.two_fa_passed:
     st.title("🛡️ التحقق الثنائي الأمني (Google Authenticator)")
-    st.write("هذا الجهاز غير موثوق. يرجى إدخال رمز التحقق المكون من 6 أرقام من تطبيق Google Authenticator:")
+    st.write("هذا الجهاز غير موثوق. يرجى إدخال رمز التحقق المكون من 6 أرقام من تطبيق Google Authenticator المعتمد لدى الشركة:")
     
     with st.form("2fa_form"):
         totp_code = st.text_input("رمز التحقق (6 أرقام):", max_chars=6)
@@ -310,9 +315,10 @@ else:
                     else:
                         st.warning("يرجى إدخال عنوان ومحتوى الخبر.")
 
+            # إعدادات الـ Authenticator حصرياً للـ Admin من الداخل
             with tab4:
                 st.write("### 📱 ربط تطبيق Google Authenticator بموبايل الإدارة")
-                st.write("قم بمسح كود الـ QR الآتي باستخدام تطبيق Google Authenticator على موبايل الشركة لربطه بالنظام:")
+                st.write("قم بمسح كود الـ QR الآتي باستخدام تطبيق Google Authenticator على موبايلك لربط أجهزة الموظفين بالنظام:")
                 
                 totp_uri = pyotp.totp.TOTP(st.session_state.totp_secret).provisioning_uri(
                     name="Linrco-QA-Admin",
@@ -325,7 +331,7 @@ else:
                 st.image(buf.getvalue(), width=250)
                 
                 st.code(st.session_state.totp_secret, language="text")
-                st.info("💡 المفتاح السري بالأعلى يمكنك نسخه وإدخاله يدويًا في تطبيق المصادقة إذا واجهتك مشكلة في مسح الـ QR.")
+                st.info("💡 يمكنك نسخ المفتاح السري بالأعلى وإدخاله يدويًا في تطبيق المصادقة على موبايلك إذا أردت.")
                 
                 if st.button("🔄 توليد مفتاح سري جديد (إبطال الموبايلات السابقة)"):
                     st.session_state.totp_secret = pyotp.random_base32()
