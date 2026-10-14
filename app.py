@@ -37,16 +37,14 @@ st.markdown("""
 # دالة ذكية لمعالجة وتحسين الصور (ضبط الحواف، الإضاءة، والجودة تلقائياً)
 def enhance_image_ai_style(image_file):
     img = Image.open(image_file)
-    # تحويل الصورة إلى RGB إذا كانت بصيغة أخرى
     if img.mode in ("RGBA", "P"):
         img = img.convert("RGB")
     
-    # ضبط الجودة والحدة تلقائياً (تعديل الحواف والوضوح)
     enhancer = ImageEnhance.Sharpness(img)
-    img = enhancer.enhance(1.3) # زيادة طفيفة لرفع وضوح الحواف
+    img = enhancer.enhance(1.3)
     
     color_enhancer = ImageEnhance.Color(img)
-    img = color_enhancer.enhance(1.1) # ضبط الألوان لتكون متناسقة
+    img = color_enhancer.enhance(1.1)
     
     return img
 
@@ -153,7 +151,7 @@ else:
             st.session_state.username = ""
             st.rerun()
 
-    # لوحة تحكم المدير (تعديل / إضافة مشاريع، ملفات، أخبار، وتغيير الصور مع معالجة AI)
+    # لوحة تحكم المدير
     if is_admin:
         with st.expander("⚙️ لوحة تحكم المدير (إدارة المشاريع، الملفات، الأخبار، وتغيير الصور)"):
             tab1, tab2, tab3, tab4 = st.tabs([
@@ -209,7 +207,7 @@ else:
                     else:
                         st.warning("يرجى إدخال اسم المشروع والرابط على الأقل.")
 
-            # إضافة خبر جديد (Slider News)
+            # إضافة خبر جديد
             with tab3:
                 news_title = st.text_input("عنوان الخبر أو التحديث:", key="news_t")
                 news_content = st.text_area("محتوى الخبر وتفاصيله:", key="news_c")
@@ -222,9 +220,6 @@ else:
                         img_path = "https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&auto=format&fit=crop&q=60"
                         if news_img_file is not None:
                             processed_img = enhance_image_ai_style(news_img_file)
-                            # حفظ الصورة المعالجة مؤقتاً في الـ session
-                            buffered = io.BytesIO()
-                            processed_img.save(buffered, format="PNG")
                             img_path = news_img_file
                             
                         st.session_state.news_list.append({
@@ -241,26 +236,28 @@ else:
             with tab4:
                 st.write("### 🏢 تغيير شعار شركة ليناركو")
                 new_c_logo = st.file_uploader("رفع شعار الشركة الجديد (PNG / JPG):", type=["png", "jpg", "jpeg"], key="c_logo_up")
-                if new_c_logo is not-None and st.button("تحديث شعار الشركة"):
-                    processed_logo = enhance_image_ai_style(new_c_logo)
-                    st.session_state.company_logo = new_c_logo
-                    st.success("تم تحديث وتحسين شعار الشركة بنجاح!")
-                    st.rerun()
+                if new_c_logo is not None:
+                    if st.button("تحديث شعار الشركة"):
+                        processed_logo = enhance_image_ai_style(new_c_logo)
+                        st.session_state.company_logo = new_c_logo
+                        st.success("تم تحديث وتحسين شعار الشركة بنجاح!")
+                        st.rerun()
 
                 st.write("---")
                 st.write("### 🛡️ تغيير شعار قسم ضمان الجودة (QA)")
                 new_qa_logo = st.file_uploader("رفع شعار قسم الجودة الجديد (PNG / JPG):", type=["png", "jpg", "jpeg"], key="qa_logo_up")
-                if new_qa_logo is not None and st.button("تحديث شعار الجودة"):
-                    processed_qa = enhance_image_ai_style(new_qa_logo)
-                    st.session_state.qa_logo = new_qa_logo
-                    st.success("تم تحديث وتحسين شعار قسم الجودة بنجاح!")
-                    st.rerun()
+                if new_qa_logo is not None:
+                    if st.button("تحديث شعار الجودة"):
+                        processed_qa = enhance_image_ai_style(new_qa_logo)
+                        st.session_state.qa_logo = new_qa_logo
+                        st.success("تم تحديث وتحسين شعار قسم الجودة بنجاح!")
+                        st.rerun()
 
     # الواجهة الرئيسية (Main Portal)
     st.title("📊 البوابة المركزية لتقارير ومشاريع ضمان الجودة")
     st.write("مرحباً بك في منصة متابعة المشاريع والتقارير التحليلية لشركة ليناركو.")
     
-    # قسم الأخبار والتحديثات (Slider / Recent News)
+    # قسم الأخبار والتحديثات
     st.markdown("---")
     st.subheader("📰 آخر الأخبار والتحديثات الإدارية")
     
@@ -298,7 +295,7 @@ else:
         
         st.info(f"📝 **الشرح والتفاصيل:**\n\n{dash_data['description']}")
         
-        # قسم الملفات المرفقة (لتحميلها من قبل المستخدمين)
+        # قسم الملفات المرفقة
         if dash_data.get("files"):
             st.markdown("### 📥 الملفات والمستندات المرفقة بالمشروع:")
             for file_item in dash_data["files"]:
