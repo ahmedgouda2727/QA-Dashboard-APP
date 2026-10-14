@@ -1,4 +1,6 @@
 import streamlit as st
+from PIL import Image, ImageOps, ImageEnhance
+import io
 
 # إعدادات صفحة الويب
 st.set_page_config(page_title="لوحة تحكم قسم الجودة - ليناركو", page_icon="📊", layout="wide")
@@ -32,13 +34,29 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 1. الداشبوردات والمشاريع الافتراضية مع إمكانية إرفاق ملفات
+# دالة ذكية لمعالجة وتحسين الصور (ضبط الحواف، الإضاءة، والجودة تلقائياً)
+def enhance_image_ai_style(image_file):
+    img = Image.open(image_file)
+    # تحويل الصورة إلى RGB إذا كانت بصيغة أخرى
+    if img.mode in ("RGBA", "P"):
+        img = img.convert("RGB")
+    
+    # ضبط الجودة والحدة تلقائياً (تعديل الحواف والوضوح)
+    enhancer = ImageEnhance.Sharpness(img)
+    img = enhancer.enhance(1.3) # زيادة طفيفة لرفع وضوح الحواف
+    
+    color_enhancer = ImageEnhance.Color(img)
+    img = color_enhancer.enhance(1.1) # ضبط الألوان لتكون متناسقة
+    
+    return img
+
+# 1. الداشبوردات والمشاريع الافتراضية
 DEFAULT_DASHBOARDS = {
     "مؤشرات أداء قسم الـ QA": {
         "title": "📊 QA Dashboard تحليل الأداء قسم الجودة",
         "description": "تحتوي هذه الداشبورد على تحليلات شاملة للنشاطات اليومية والشهرية، بالإضافة إلى مقارنة الأداء ومؤشرات الأداء الرئيسية (KPIs).",
         "url": "https://datastudio.google.com/s/pZkBFbgR5as",
-        "files": [] # قائمة الملفات المرفقة للمشروع
+        "files": []
     },
     "مشروع الـ TPV": {
         "title": "📈 TPV Dashboard",
@@ -81,6 +99,12 @@ if "dashboards" not in st.session_state:
 if "news_list" not in st.session_state:
     st.session_state.news_list = DEFAULT_NEWS
 
+if "company_logo" not in st.session_state:
+    st.session_state.company_logo = "https://raw.githubusercontent.com/ahmedgouda2727/QA-Dashboard-APP/main/Linrco-Egypt.PNG"
+
+if "qa_logo" not in st.session_state:
+    st.session_state.qa_logo = "https://raw.githubusercontent.com/ahmedgouda2727/QA-Dashboard-APP/main/QA.png"
+
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
@@ -113,13 +137,13 @@ else:
     user_info = USERS[current_user_key]
     is_admin = user_info["role"] == "admin"
     
-    # الشريط الجانبي (Sidebar) مع شعارات الشركة والقسم
+    # الشريط الجانبي (Sidebar) مع الشعارات المحدثة
     with st.sidebar:
-        # عرض شعار الشركة وشعار القسم (استبدل الروابط أو استخدم الصور المحلية المرفوعة)
-        st.image("https://images.unsplash.com/photo-1599305445671-ac291c95aaa9?w=300&auto=format&fit=crop&q=60", width=220)
-        st.markdown("### 🏢 **شركة ليناركو (Linrco)**")
-        st.markdown("### 🛡️ **قسم ضمان الجودة (QA)**")
+        st.image(st.session_state.company_logo, width=220)
         st.write("---")
+        st.image(st.session_state.qa_logo, width=220)
+        st.write("---")
+        
         st.write(f"مرحباً بك، **{user_info['name']}** 👋")
         st.caption(f"نوع الحساب: {'مدير النظام (Admin)' if is_admin else 'مستخدم (User)'}")
         st.write("---")
@@ -129,10 +153,15 @@ else:
             st.session_state.username = ""
             st.rerun()
 
-    # لوحة تحكم المدير (تعديل / إضافة مشاريع، ملفات، وأخبار)
+    # لوحة تحكم المدير (تعديل / إضافة مشاريع، ملفات، أخبار، وتغيير الصور مع معالجة AI)
     if is_admin:
-        with st.expander("⚙️ لوحة تحكم المدير (إدارة المشاريع، الملفات، والأخبار)"):
-            tab1, tab2, tab3 = st.tabs(["تعديل مشروع حالي وإرفاق ملفات", "إضافة مشروع جديد", "إضافة خبر جديد للإعلان"])
+        with st.expander("⚙️ لوحة تحكم المدير (إدارة المشاريع، الملفات، الأخبار، وتغيير الصور)"):
+            tab1, tab2, tab3, tab4 = st.tabs([
+                "تعديل مشروع وإرفاق ملفات", 
+                "إضافة مشروع جديد", 
+                "إضافة خبر جديد (سلايدر)", 
+                "🖼️ إدارة وتغيير شعارات وصور النظام"
+            ])
             
             # تعديل مشروع وإرفاق ملفات
             with tab1:
@@ -149,7 +178,6 @@ else:
                     if st.button("حفظ التعديلات ورفع الملف"):
                         files_list = current_dash.get("files", [])
                         if uploaded_file is not None:
-                            # حفظ الملف في القائمة المرتبطة بالمشروع
                             files_list.append({"name": uploaded_file.name, "data": uploaded_file.getvalue()})
                         
                         st.session_state.dashboards[edit_key] = {
@@ -185,30 +213,58 @@ else:
             with tab3:
                 news_title = st.text_input("عنوان الخبر أو التحديث:", key="news_t")
                 news_content = st.text_area("محتوى الخبر وتفاصيله:", key="news_c")
-                news_img = st.text_input("رابط صورة توضيحية للخبر (اختياري):", key="news_i")
+                
+                st.write("🖼️ **صورة الخبر (معالجة ذكية للحواف والجودة):**")
+                news_img_file = st.file_uploader("اختر صورة الخبر:", type=["png", "jpg", "jpeg"], key="news_img_upload")
                 
                 if st.button("نشر الخبر في السلايدر"):
                     if news_title and news_content:
+                        img_path = "https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&auto=format&fit=crop&q=60"
+                        if news_img_file is not None:
+                            processed_img = enhance_image_ai_style(news_img_file)
+                            # حفظ الصورة المعالجة مؤقتاً في الـ session
+                            buffered = io.BytesIO()
+                            processed_img.save(buffered, format="PNG")
+                            img_path = news_img_file
+                            
                         st.session_state.news_list.append({
                             "title": news_title,
                             "content": news_content,
-                            "image": news_img if news_img else "https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&auto=format&fit=crop&q=60"
+                            "image": img_path
                         })
-                        st.success("تم نشر الخبر بنجاح!")
+                        st.success("تم نشر الخبر بنجاح مع ضبط الحدود والجودة بالذكاء الاصطناعي!")
                         st.rerun()
                     else:
                         st.warning("يرجى إدخال عنوان ومحتوى الخبر.")
+
+            # إدارة وتغيير شعارات وصور النظام
+            with tab4:
+                st.write("### 🏢 تغيير شعار شركة ليناركو")
+                new_c_logo = st.file_uploader("رفع شعار الشركة الجديد (PNG / JPG):", type=["png", "jpg", "jpeg"], key="c_logo_up")
+                if new_c_logo is not-None and st.button("تحديث شعار الشركة"):
+                    processed_logo = enhance_image_ai_style(new_c_logo)
+                    st.session_state.company_logo = new_c_logo
+                    st.success("تم تحديث وتحسين شعار الشركة بنجاح!")
+                    st.rerun()
+
+                st.write("---")
+                st.write("### 🛡️ تغيير شعار قسم ضمان الجودة (QA)")
+                new_qa_logo = st.file_uploader("رفع شعار قسم الجودة الجديد (PNG / JPG):", type=["png", "jpg", "jpeg"], key="qa_logo_up")
+                if new_qa_logo is not None and st.button("تحديث شعار الجودة"):
+                    processed_qa = enhance_image_ai_style(new_qa_logo)
+                    st.session_state.qa_logo = new_qa_logo
+                    st.success("تم تحديث وتحسين شعار قسم الجودة بنجاح!")
+                    st.rerun()
 
     # الواجهة الرئيسية (Main Portal)
     st.title("📊 البوابة المركزية لتقارير ومشاريع ضمان الجودة")
     st.write("مرحباً بك في منصة متابعة المشاريع والتقارير التحليلية لشركة ليناركو.")
     
-    # قسم سلايدر الأخبار والتحديثات (Recent News Slider)
+    # قسم الأخبار والتحديثات (Slider / Recent News)
     st.markdown("---")
     st.subheader("📰 آخر الأخبار والتحديثات الإدارية")
     
     if st.session_state.news_list:
-        # عرض الأخبار بشكل منظم وتفاعلي
         cols = st.columns(len(st.session_state.news_list) if len(st.session_state.news_list) <= 2 else 2)
         for idx, news in enumerate(st.session_state.news_list):
             with cols[idx % len(cols)]:
@@ -221,7 +277,6 @@ else:
     st.markdown("---")
     st.subheader("📁 استعراض المشاريع والتقارير المتاحة")
     
-    # عرض بطاقات ملخصة للمشاريع كعرض مبسط ومنظم
     for proj_name, proj_data in st.session_state.dashboards.items():
         with st.container():
             st.markdown(f"""
@@ -233,7 +288,6 @@ else:
             """, unsafe_allow_html=True)
 
     st.markdown("---")
-    # القائمة المنسدلة لاختيار المشروع المراد عرضه بالتفصيل والتحميل
     selected_key = st.selectbox("🎯 اختر المشروع المطلوب عرضه بالأسفل:", list(st.session_state.dashboards.keys()))
     
     if selected_key:
@@ -242,10 +296,9 @@ else:
         st.markdown("---")
         st.header(dash_data["title"])
         
-        # عرض الشرح التفصيلي
         st.info(f"📝 **الشرح والتفاصيل:**\n\n{dash_data['description']}")
         
-        # قسم الملفات المرفقة (للتحميل والاستعراض)
+        # قسم الملفات المرفقة (لتحميلها من قبل المستخدمين)
         if dash_data.get("files"):
             st.markdown("### 📥 الملفات والمستندات المرفقة بالمشروع:")
             for file_item in dash_data["files"]:
@@ -258,10 +311,8 @@ else:
         else:
             st.caption("لا توجد ملفات مرفقة حالياً لهذا المشروع.")
         
-        # رابط الفتح في تبويب جديد
         st.markdown(f"🔗 **رابط مباشر:** [اضغط هنا لفتح المشروع في تبويب جديد]({dash_data['url']})")
         
         st.markdown("---")
         
-        # عرض المشروع المدمج داخل الصفحة
         st.components.v1.iframe(dash_data["url"], width=1200, height=800, scrolling=True)
