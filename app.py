@@ -5,7 +5,7 @@ import io
 # إعدادات صفحة الويب
 st.set_page_config(page_title="لوحة تحكم قسم الجودة - ليناركو", page_icon="📊", layout="wide")
 
-# تخصيص وتكبير الخطوط، قلب الاتجاه إلى RTL، ونقل الشريط الجانبي لليمين
+# تخصيص وتكبير الخطوط، ضبط اتجاه اليمين لليسار، وإصلاح محاذاة الروابط والعناصر بالكامل
 st.markdown("""
     <style>
     /* إخفاء شريط أدوات Streamlit العلوي (Toolbar) */
@@ -13,24 +13,24 @@ st.markdown("""
     #MainMenu {visibility: hidden !important;}
     footer {visibility: hidden !important;}
     
-    /* جعل الاتجاه من اليمين لليسار لكافة عناصر الصفحة والنصوص العربية */
-    html, body, [class*="css"] {
+    /* فرض الاتجاه من اليمين لليسار والمحاذاة لليمين على كافة عناصر الصفحة بلا استثناء */
+    html, body, [class*="css"], .stMarkdown, p, span, div, label {
         direction: rtl !important;
         text-align: right !important;
         font-family: 'Cairo', Tahoma, sans-serif !important;
         font-size: 20px !important;
     }
     
-    /* تكبير خط العناوين وتثبيت محاذاتها لليمين */
-    h1, h2, h3, h4, h5, h6 {
+    /* إصلاح محاذاة العناوين والروابط لتكون من اليمين تماماً */
+    h1, h2, h3, h4, h5, h6, a {
         text-align: right !important;
-        color: #8B0000;
+        direction: rtl !important;
     }
-    h1 { font-size: 38px !important; }
+    h1 { font-size: 38px !important; color: #8B0000; }
     h2 { font-size: 30px !important; color: #333333; }
     h3 { font-size: 24px !important; }
 
-    /* نقل الشريط الجانبي (Sidebar) إلى اليمين وعكس اتجاهه */
+    /* نقل الشريط الجانبي (Sidebar) إلى اليمين */
     [data-testid="stSidebar"] {
         right: 0px !important;
         left: auto !important;
@@ -38,8 +38,8 @@ st.markdown("""
         text-align: right !important;
     }
     
-    /* تعديل مكان محتوى الصفحة الرئيسية ليترك مساحة للشريط الجانبي الأيمن */
-    .main .block-container {
+    /* محاذاة محتوى الحقول وأزرار التحميل لليمين */
+    .stSelectbox, .stTextInput, .stTextArea, .stFileUploader, .stDownloadButton {
         direction: rtl !important;
         text-align: right !important;
     }
@@ -53,11 +53,7 @@ st.markdown("""
         margin-bottom: 20px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         text-align: right !important;
-    }
-    
-    /* ضبط محاذاة الحقول والتسميات */
-    .stSelectbox, .stTextInput, .stTextArea, .stFileUploader {
-        text-align: right !important;
+        direction: rtl !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -284,7 +280,7 @@ else:
     st.title("📊 البوابة المركزية لتقارير ومشاريع ضمان الجودة")
     st.write("مرحباً بك في منصة متابعة المشاريع والتقارير التحليلية لشركة ليناركو.")
     
-    # قسم الأخبار والتحديثات
+    # قسم الأخبار والتحديثات (مع إتاحة زر تغيير الصورة تحت كل خبر للآدمن فقط)
     st.markdown("---")
     st.subheader("📰 آخر الأخبار والتحديثات الإدارية")
     
@@ -297,6 +293,16 @@ else:
                         st.image(news["image"], use_column_width=True)
                     st.markdown(f"#### {news['title']}")
                     st.write(news['content'])
+                    
+                    # زر تغيير صورة هذا الخبر (متاح للآدمن فقط مباشرة تحت الصورة)
+                    if is_admin:
+                        with st.expander(f"⚙️ تغيير صورة الخبر ({idx+1})"):
+                            changed_img = st.file_uploader("اختر صورة جديدة:", type=["png", "jpg", "jpeg"], key=f"news_ch_{idx}")
+                            if changed_img is not None:
+                                if st.button(f"حفظ الصورة الجديدة للخبر {idx+1}", key=f"btn_ch_{idx}"):
+                                    st.session_state.news_list[idx]["image"] = enhance_image_ai_style(changed_img)
+                                    st.success("تم تحديث صورة الخبر بنجاح بالذكاء الاصطناعي!")
+                                    st.rerun()
 
     st.markdown("---")
     st.subheader("📁 استعراض المشاريع والتقارير المتاحة")
