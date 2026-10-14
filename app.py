@@ -1,7 +1,6 @@
 import streamlit as st
 from PIL import Image, ImageEnhance
 import io
-import requests
 
 # إعدادات صفحة الويب
 st.set_page_config(page_title="لوحة تحكم قسم الجودة - ليناركو", page_icon="📊", layout="wide")
@@ -88,14 +87,6 @@ def enhance_image_ai_style(image_file):
     buffered = io.BytesIO()
     img.save(buffered, format="PNG")
     return buffered.getvalue()
-
-# دالة جلب الـ IP الخاص بالمستخدم للتحقق من شبكة الشركة
-def get_user_ip():
-    try:
-        response = requests.get('https://api.ipify.org?format=json', timeout=3)
-        return response.json().get('ip')
-    except:
-        return None
 
 # 1. الداشبوردات والمشاريع الافتراضية
 DEFAULT_DASHBOARDS = {
@@ -184,13 +175,6 @@ else:
     user_info = USERS[current_user_key]
     is_admin = user_info["role"] == "admin"
     
-    # 🔒 تفعيل حماية شبكة الشركة (اختياري: ضع IP الشركة هنا بدلاً من الـ مثال)
-    # COMPANY_STATIC_IP = "197.54.x.x" 
-    # user_ip = get_user_ip()
-    # if not is_admin and user_ip != COMPANY_STATIC_IP:
-    #     st.error("🚫 عذراً، لا يمكن الوصول إلى النظام إلا عند الاتصال بشبكة شركة ليناركو الداخلية فقط.")
-    #     st.stop()
-
     # الشريط الجانبي (Sidebar) في اليمين مع الشعارات وأزرار التغيير للآدمن
     with st.sidebar:
         st.image(st.session_state.company_logo, use_column_width=True)
