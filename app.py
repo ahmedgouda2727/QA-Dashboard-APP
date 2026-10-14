@@ -1,27 +1,49 @@
 import streamlit as st
-from PIL import Image, ImageOps, ImageEnhance
+from PIL import Image, ImageEnhance
 import io
 
 # إعدادات صفحة الويب
 st.set_page_config(page_title="لوحة تحكم قسم الجودة - ليناركو", page_icon="📊", layout="wide")
 
-# تخصيص وتكبير الخطوط وإخفاء شريط أدوات Streamlit العلوي بالكامل
+# تخصيص وتكبير الخطوط، قلب الاتجاه إلى RTL، ونقل الشريط الجانبي لليمين
 st.markdown("""
     <style>
-    /* إخفاء شريط أدوات Streamlit العلوي (Toolbar) وأزرار المشاركة والتعديل */
+    /* إخفاء شريط أدوات Streamlit العلوي (Toolbar) */
     header {visibility: hidden !important;}
     #MainMenu {visibility: hidden !important;}
     footer {visibility: hidden !important;}
     
-    /* تكبير الخط العام في الصفحة */
+    /* جعل الاتجاه من اليمين لليسار لكافة عناصر الصفحة والنصوص العربية */
     html, body, [class*="css"] {
+        direction: rtl !important;
+        text-align: right !important;
+        font-family: 'Cairo', Tahoma, sans-serif !important;
         font-size: 20px !important;
     }
-    /* تكبير خط العناوين */
-    h1 { font-size: 38px !important; color: #8B0000; }
+    
+    /* تكبير خط العناوين وتثبيت محاذاتها لليمين */
+    h1, h2, h3, h4, h5, h6 {
+        text-align: right !important;
+        color: #8B0000;
+    }
+    h1 { font-size: 38px !important; }
     h2 { font-size: 30px !important; color: #333333; }
     h3 { font-size: 24px !important; }
+
+    /* نقل الشريط الجانبي (Sidebar) إلى اليمين وعكس اتجاهه */
+    [data-testid="stSidebar"] {
+        right: 0px !important;
+        left: auto !important;
+        direction: rtl !important;
+        text-align: right !important;
+    }
     
+    /* تعديل مكان محتوى الصفحة الرئيسية ليترك مساحة للشريط الجانبي الأيمن */
+    .main .block-container {
+        direction: rtl !important;
+        text-align: right !important;
+    }
+
     /* تنسيق كاردات المشاريع والأخبار */
     .project-card {
         background-color: #f9f9f9;
@@ -30,11 +52,17 @@ st.markdown("""
         padding: 20px;
         margin-bottom: 20px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        text-align: right !important;
+    }
+    
+    /* ضبط محاذاة الحقول والتسميات */
+    .stSelectbox, .stTextInput, .stTextArea, .stFileUploader {
+        text-align: right !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# دالة ذكية لمعالجة وتحسين الصور (ضبط الحواف، الإضاءة، والجودة تلقائياً)
+# دالة ذكية لمعالجة وتحسين الصور
 def enhance_image_ai_style(image_file):
     img = Image.open(image_file)
     if img.mode in ("RGBA", "P"):
@@ -46,7 +74,9 @@ def enhance_image_ai_style(image_file):
     color_enhancer = ImageEnhance.Color(img)
     img = color_enhancer.enhance(1.1)
     
-    return img
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")
+    return buffered.getvalue()
 
 # 1. الداشبوردات والمشاريع الافتراضية
 DEFAULT_DASHBOARDS = {
@@ -135,11 +165,11 @@ else:
     user_info = USERS[current_user_key]
     is_admin = user_info["role"] == "admin"
     
-    # الشريط الجانبي (Sidebar) مع الشعارات المحدثة
+    # الشريط الجانبي (Sidebar) في اليمين مع الشعارات
     with st.sidebar:
-        st.image(st.session_state.company_logo, width=220)
+        st.image(st.session_state.company_logo, use_column_width=True)
         st.write("---")
-        st.image(st.session_state.qa_logo, width=220)
+        st.image(st.session_state.qa_logo, use_column_width=True)
         st.write("---")
         
         st.write(f"مرحباً بك، **{user_info['name']}** 👋")
@@ -219,8 +249,7 @@ else:
                     if news_title and news_content:
                         img_path = "https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&auto=format&fit=crop&q=60"
                         if news_img_file is not None:
-                            processed_img = enhance_image_ai_style(news_img_file)
-                            img_path = news_img_file
+                            img_path = enhance_image_ai_style(news_img_file)
                             
                         st.session_state.news_list.append({
                             "title": news_title,
@@ -238,8 +267,7 @@ else:
                 new_c_logo = st.file_uploader("رفع شعار الشركة الجديد (PNG / JPG):", type=["png", "jpg", "jpeg"], key="c_logo_up")
                 if new_c_logo is not None:
                     if st.button("تحديث شعار الشركة"):
-                        processed_logo = enhance_image_ai_style(new_c_logo)
-                        st.session_state.company_logo = new_c_logo
+                        st.session_state.company_logo = enhance_image_ai_style(new_c_logo)
                         st.success("تم تحديث وتحسين شعار الشركة بنجاح!")
                         st.rerun()
 
@@ -248,8 +276,7 @@ else:
                 new_qa_logo = st.file_uploader("رفع شعار قسم الجودة الجديد (PNG / JPG):", type=["png", "jpg", "jpeg"], key="qa_logo_up")
                 if new_qa_logo is not None:
                     if st.button("تحديث شعار الجودة"):
-                        processed_qa = enhance_image_ai_style(new_qa_logo)
-                        st.session_state.qa_logo = new_qa_logo
+                        st.session_state.qa_logo = enhance_image_ai_style(new_qa_logo)
                         st.success("تم تحديث وتحسين شعار قسم الجودة بنجاح!")
                         st.rerun()
 
