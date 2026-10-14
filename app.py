@@ -1,6 +1,7 @@
 import streamlit as st
 from PIL import Image, ImageEnhance
 import io
+import pyotp
 
 # إعدادات صفحة الويب
 st.set_page_config(page_title="لوحة تحكم قسم الجودة - ليناركو", page_icon="📊", layout="wide")
@@ -88,6 +89,10 @@ def enhance_image_ai_style(image_file):
     img.save(buffered, format="PNG")
     return buffered.getvalue()
 
+# المفتاح السري الموحد لتطبيق Google Authenticator (يمكن للآدمن تغييره من اللوحة)
+if "totp_secret" not in st.session_state:
+    st.session_state.totp_secret = "JBSWY3DPEHPK3PXP" # مفتاح سري افتراضي
+
 # 1. الداشبوردات والمشاريع الافتراضية
 DEFAULT_DASHBOARDS = {
     "مؤشرات أداء قسم الـ QA": {
@@ -130,6 +135,9 @@ USERS = {
     "abdallah.zaukzouk@fnrco.com.sa": {"password": "AZ123", "name": "عبد الله زقزوق", "role": "user"}
 }
 
+# رمز الشبكة الداخلية للشركة (Network PIN)
+COMPANY_NETWORK_PIN = "Linrco2026"
+
 # 4. إدارة حالة التطبيق (Session State)
 if "dashboards" not in st.session_state:
     st.session_state.dashboards = DEFAULT_DASHBOARDS
@@ -149,23 +157,60 @@ if "logged_in" not in st.session_state:
 if "username" not in st.session_state:
     st.session_state.username = ""
 
-# 5. شاشة تسجيل الدخول
+# الاحتفاظ بالأجهزة الموثوقة (Trusted Devices) في الـ Session
+if "trusted_devices" not in st.session_state:
+    st.session_state.trusted_devices = set()
+
+# 5. شاشة تسجيل الدخول المدمجة بالرمز السري ومصادقة Google Authenticator
 if not st.session_state.logged_in:
     st.title("🔐 تسجيل الدخول إلى نظام الداشبوردات - ليناركو")
-    st.write("الرجاء إدخال البريد الإلكتروني / اسم المستخدم وكلمة المرور.")
+    st.write("الرجاء إدخال بيانات الحساب ورمز أمان المقر.")
     
     with st.form("login_form"):
         username_input = st.text_input("اسم المستخدم / البريد الإلكتروني")
         password_input = st.text_input("كلمة المرور", type="password")
-        submit_button = st.form_submit_button("دخول")
+        network_pin_input = st.text_input("🔑 رمز أمان شبكة الشركة (Network PIN)", type="password")
+        
+        # معرف افتراضي للجهاز الحالي
+        device_id = f"{username_input.strip().lower()}_trusted_device"
+        is_device_trusted = device_id in st.session_state.trusted_devices
+        
+        # حقل رمز Google Authenticator (يطلب فقط إذا لم يكن الجهاز موثوقاً)
+        if not is_device_trusted:
+            otp_input = st.text_input("📲 رمز المصادقة (Google Authenticator App)", help="أدخل الرمز المكون من 6 أرقام والموجود على موبايل الشركة")
+            remember_device = st.checkbox("طلب التوثيق والوثوق بهذا الجهاز (Trust this device) لتخطي رمز الأمان لاحقاً")
+        else:
+            st.info("🟢 هذا الجهاز موثوق ومسجل بالفعل (Trusted Device).")
+            otp_input = None
+            remember_device = False
+
+        submit_button = st.form_submit_button("دخول للنظام")
         
         if submit_button:
             clean_username = username_input.strip().lower()
+            
+            # التحقق من اسم المستخدم وكلمة المرور ورمز المقر
             if clean_username in USERS and USERS[clean_username]["password"] == password_input:
-                st.session_state.logged_in = True
-                st.session_state.username = clean_username
-                st.success("تم تسجيل الدخول بنجاح!")
-                st.rerun()
+                if network_pin_input != COMPANY_NETWORK_PIN:
+                    st.error("❌ رمز أمان شبكة الشركة (Network PIN) غير صحيح.")
+                else:
+                    # التحقق من رمز Google Authenticator إذا كان الجهاز غير موثوق
+                    if not is_device_trusted:
+                        totp = pyotp.TOTP(st.session_state.totp_secret)
+                        if not otp_input or not totp.verify(otp_input):
+                            st.error("❌ رمز المصادقة (Google Authenticator Code) غير صحيح أو منتهي الصلاحية.")
+                        else:
+                            if remember_device:
+                                st.session_state.trusted_devices.add(device_id)
+                            st.session_state.logged_in = True
+                            st.session_state.username = clean_username
+                            st.success("تم تسجيل الدخول وتوثيق الجهاز بنجاح!")
+                            st.rerun()
+                    else:
+                        st.session_state.logged_in = True
+                        st.session_state.username = clean_username
+                        st.success("تم تسجيل الدخول بنجاح!")
+                        st.rerun()
             else:
                 st.error("اسم المستخدم أو كلمة المرور غير صحيحة.")
 
@@ -175,10 +220,9 @@ else:
     user_info = USERS[current_user_key]
     is_admin = user_info["role"] == "admin"
     
-    # الشريط الجانبي (Sidebar) في اليمين مع الشعارات وأزرار التغيير للآدمن
+    # الشريط الجانبي (Sidebar)
     with st.sidebar:
         st.image(st.session_state.company_logo, use_column_width=True)
-        # زر تغيير شعار الشركة تحت الصورة للآدمن فقط
         if is_admin:
             with st.expander("✏️ تغيير شعار الشركة"):
                 c_logo_up = st.file_uploader("رفع شعار ليناركو جديد:", type=["png", "jpg", "jpeg"], key="sb_c_logo")
@@ -189,7 +233,6 @@ else:
                     
         st.write("---")
         st.image(st.session_state.qa_logo, use_column_width=True)
-        # زر تغيير شعار قسم الجودة تحت الصورة للآدمن فقط
         if is_admin:
             with st.expander("✏️ تغيير شعار قسم الجودة"):
                 qa_logo_up = st.file_uploader("رفع شعار الجودة جديد:", type=["png", "jpg", "jpeg"], key="sb_qa_logo")
@@ -209,16 +252,16 @@ else:
             st.session_state.username = ""
             st.rerun()
 
-    # لوحة تحكم المدير
+    # لوحة تحكم المدير (تتضمن قسم الـ Google Authenticator للآدمن فقط)
     if is_admin:
-        with st.expander("⚙️ لوحة تحكم المدير (إدارة المشاريع، الملفات، والأخبار)"):
-            tab1, tab2, tab3 = st.tabs([
+        with st.expander("⚙️ لوحة تحكم المدير (إدارة المشاريع، الملفات، الأخبار، وإعدادات الـ 2FA)"):
+            tab1, tab2, tab3, tab4 = st.tabs([
                 "تعديل مشروع وإرفاق ملفات", 
                 "إضافة مشروع جديد", 
-                "إضافة خبر جديد (سلايدر)"
+                "إضافة خبر جديد (سلايدر)",
+                "📲 إعدادات Google Authenticator (خاص للآدمن فقط)"
             ])
             
-            # تعديل مشروع وإرفاق ملفات
             with tab1:
                 edit_key = st.selectbox("اختر المشروع للتعديل:", list(st.session_state.dashboards.keys()), key="edit_select")
                 if edit_key:
@@ -244,7 +287,6 @@ else:
                         st.success("تم حفظ التعديلات وتحديث الملفات بنجاح!")
                         st.rerun()
             
-            # إضافة مشروع جديد
             with tab2:
                 add_name = st.text_input("اسم المشروع القصير (في القائمة):", key="add_name")
                 add_title = st.text_input("العنوان الرئيسي:", key="add_title")
@@ -264,7 +306,6 @@ else:
                     else:
                         st.warning("يرجى إدخال اسم المشروع والرابط على الأقل.")
 
-            # إضافة خبر جديد
             with tab3:
                 news_title = st.text_input("عنوان الخبر أو التحديث:", key="news_t")
                 news_content = st.text_area("محتوى الخبر وتفاصيله:", key="news_c")
@@ -288,13 +329,28 @@ else:
                     else:
                         st.warning("يرجى إدخال عنوان ومحتوى الخبر.")
 
+            # 🔒 القسم الخاص بالآدمن لإعداد وربط Google Authenticator
+            with tab4:
+                st.write("### 🔑 إدارة رمز المصادقة الثنائية (Google Authenticator)")
+                st.write("امسح هذا المفتاح برمجياً في تطبيق Google Authenticator على موبايل الشركة فقط:")
+                
+                totp = pyotp.TOTP(st.session_state.totp_secret)
+                provisioning_uri = totp.provisioning_uri(name="QA_Linrco_Admin", issuer_name="Linrco")
+                
+                st.code(f"المفتاح السري (Secret Key): {st.session_state.totp_secret}")
+                st.info("💡 يمكنك إضافة هذا المفتاح السري يدوياً في تطبيق Google Authenticator بفتح التطبيق واختيار 'Enter a setup key'.")
+                
+                # إمكانية للآدمن لتوليد مفتاح سري جديد في حال رغب في ذلك
+                if st.button("توليد مفتاح سري جديد للـ 2FA"):
+                    st.session_state.totp_secret = pyotp.random_base32()
+                    st.success("تم إعادة تعيين المفتاح السري! يرجى إعادة ربطه بموبايل الشركة.")
+                    st.rerun()
+
     # الواجهة الرئيسية (Main Portal)
     st.title("📊 البوابة المركزية لتقارير ومشاريع ضمان الجودة")
     
-    # الجملة الترحيبية الأولى مضبوطة من اليمين للشمال
     st.markdown('<p class="rtl-right">مرحباً بك في منصة متابعة المشاريع والتقارير التحليلية لشركة ليناركو.</p>', unsafe_allow_html=True)
     
-    # قسم الأخبار والتحديثات
     st.markdown("---")
     st.subheader("📰 آخر الأخبار والتحديثات الإدارية")
     
@@ -308,7 +364,6 @@ else:
                     st.markdown(f"#### {news['title']}")
                     st.write(news['content'])
                     
-                    # زر تغيير صورة الخبر مباشرة تحت الصورة للآدمن
                     if is_admin:
                         with st.expander(f"⚙️ تغيير صورة الخبر ({idx+1})"):
                             changed_img = st.file_uploader("اختر صورة جديدة:", type=["png", "jpg", "jpeg"], key=f"news_ch_{idx}")
@@ -342,7 +397,6 @@ else:
         
         st.info(f"📝 **الشرح والتفاصيل:**\n\n{dash_data['description']}")
         
-        # قسم الملفات المرفقة
         if dash_data.get("files"):
             st.markdown("### 📥 الملفات والمستندات المرفقة بالمشروع:")
             for file_item in dash_data["files"]:
@@ -353,10 +407,8 @@ else:
                     mime="application/octet-stream"
                 )
         else:
-            # الجملة الثانية مضبوطة محاذاة من اليمين للشمال
             st.markdown('<p class="rtl-right" style="color: gray; font-size: 16px;">لا توجد ملفات مرفقة حالياً لهذا المشروع.</p>', unsafe_allow_html=True)
         
-        # الجملة الثالثة والرابط المباشر مضبوط من اليمين للشمال
         st.markdown(f'<p class="rtl-right">🔗 <b>رابط مباشر:</b> <a href="{dash_data["url"]}" target="_blank">اضغط هنا لفتح المشروع في تبويب جديد</a></p>', unsafe_allow_html=True)
         
         st.markdown("---")
