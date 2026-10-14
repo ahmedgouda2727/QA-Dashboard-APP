@@ -113,7 +113,7 @@ DEFAULT_NEWS = [
     }
 ]
 
-# 3. حسابات المستخدمين مع الصلاحيات (admin, manager, user)
+# 3. حسابات المستخدمين مع الصلاحيات
 if "users_db" not in st.session_state:
     st.session_state.users_db = {
         "admin": {"password": "123", "name": "مدير النظام", "role": "admin"},
@@ -143,9 +143,9 @@ if "qa_logo" not in st.session_state:
 if "totp_secret" not in st.session_state:
     st.session_state.totp_secret = pyotp.random_base32()
 
-# قائمة الأجهزة الموثوقة (المقترنة)
+# قائمة الأجهزة الموثوقة الديناميكية لتسجيل الأجهزة التي تمت المصادقة عليها
 if "trusted_devices" not in st.session_state:
-    st.session_state.trusted_devices = ["موبايل الشركة الرئيسي (مدير النظام)"]
+    st.session_state.trusted_devices = [{"name": "موبايل الشركة الرئيسي (مدير النظام)", "user": "admin"}]
 
 if "device_trusted" not in st.session_state:
     st.session_state.device_trusted = False
@@ -159,7 +159,6 @@ if "two_fa_passed" not in st.session_state:
 if "username" not in st.session_state:
     st.session_state.username = ""
 
-# صفحة عرض إعدادات الآدمن المنفصلة
 if "show_admin_settings" not in st.session_state:
     st.session_state.show_admin_settings = False
 
@@ -196,25 +195,32 @@ elif st.session_state.logged_in and not st.session_state.device_trusted and not 
     
     with st.form("2fa_form"):
         totp_code = st.text_input("رمز التحقق (6 أرقام):", max_chars=6)
+        device_name_input = st.text_input("اسم جهازك أو المتصفح (مثال: لاب توب أحمد / موبايل سامسونج):", value="جهاز موثوق جديد")
         trust_this_device = st.checkbox("وثق هذا الجهاز (عدم طلب الرمز مرة أخرى على هذا المتصفح)")
         verify_btn = st.form_submit_button("تحقق ودخول")
         
         if verify_btn:
             totp = pyotp.TOTP(st.session_state.totp_secret)
-            if totp.verify(totp_code):
+            # valid_window=1 تمكن السيرفر من قبول الكود السابق واللاحق بفارق زمني لتجنب مشاكل توقيت الموبايل
+            if totp.verify(totp_code, valid_window=1):
                 st.session_state.two_fa_passed = True
                 if trust_this_device:
                     st.session_state.device_trusted = True
+                    # إضافة الجهاز تلقائياً لقائمة الأجهزة الموثوقة للآدمن
+                    device_entry = {"name": f"{device_name_input} ({st.session_state.username})", "user": st.session_state.username}
+                    if device_entry not in st.session_state.trusted_devices:
+                        st.session_state.trusted_devices.append(device_entry)
+                
                 st.success("تم التحقق بنجاح!")
                 st.rerun()
             else:
-                st.error("رمز التحقق غير صحيح أو انتهت صلاحيته.")
+                st.error("رمز التحقق غير صحيح أو انتهت صلاحيته. يرجى المحاولة بالرمز الجديد.")
 
 # 7. الشاشة الرئيسية بعد اجتياز الأمان
 else:
     current_user_key = st.session_state.username
     user_info = st.session_state.users_db[current_user_key]
-    user_role = user_info["role"] # admin, manager, user
+    user_role = user_info["role"]
     is_admin = (user_role == "admin")
     is_manager = (user_role == "manager")
     
@@ -260,7 +266,7 @@ else:
             st.session_state.username = ""
             st.rerun()
 
-    # صفحة إعدادات الآدمن المنفصلة (إذا ضغط على الزر في الـ Sidebar)
+    # صفحة إعدادات الآدمن المنفصلة
     if is_admin and st.session_state.show_admin_settings:
         st.title("⚙️ لوحة إعدادات النظام والأمان المركزية")
         st.write("هذه اللوحة مخصصة للآدمن فقط لإدارة إعدادات الأجهزة، المصادقة الثنائية، وصلاحيات المستخدمين.")
@@ -273,14 +279,13 @@ else:
         
         tab_sec1, tab_sec2 = st.tabs(["📱 إعدادات الأمان والتحقق الثنائي", "👥 لوحة تحكم المستخدمين والصلاحيات"])
         
-        # 1. إعدادات الأمان والـ Authenticator
+        # 1. إعدادات الأمان والـ Authenticator والأجهزة الموثوقة
         with tab_sec1:
             st.subheader("خطوات تسجيل موبايل الشركة في Google Authenticator:")
             st.markdown("""
-            1. حمل تطبيق **Google Authenticator** على هاتف الشركة أو هاتفك المعتمد من المتجر.
+            1. حمل تطبيق **Google Authenticator** على هاتفك.
             2. افتح التطبيق واضغط على زر الإضافة **(+)** ثم اختر **مسح رمز الاستجابة السريعة (Scan a QR code)**.
             3. امسح كود الـ QR الموجود بالأسفل، أو أدخل المفتاح السري يدويًا.
-            4. سيظهر لك كود مكون من 6 أرقام يتغير كل 30 ثانية لتسجيل الأجهزة بأمان.
             """)
             
             totp_uri = pyotp.totp.TOTP(st.session_state.totp_secret).provisioning_uri(
@@ -302,31 +307,25 @@ else:
                 
             st.markdown("---")
             st.subheader("📱 إدارة الأجهزة المقترنة (Trusted Devices)")
-            st.write("الأجهزة التي تمت الموافقة عليها وثقتها:")
+            st.write("هنا تظهر الأجهزة التي تمت الموافقة عليها وثقتها بنجاح أثناء تسجيل الدخول:")
             
-            for d_idx, dev_name in enumerate(st.session_state.trusted_devices):
-                col_d1, col_d2 = st.columns([4, 1])
-                with col_d1:
-                    st.write(f"🔹 {dev_name}")
-                with col_d2:
-                    if st.button("إزالة الجهاز", key=f"del_dev_{d_idx}"):
-                        st.session_state.trusted_devices.pop(d_idx)
-                        st.success("تم إزالة الجهاز من القائمة!")
-                        st.rerun()
-                        
-            new_dev = st.text_input("إضافة جهاز جديد مقترن (اسم المتصفح أو الموبايل):")
-            if st.button("إضافة الجهاز لقائمة الثقة"):
-                if new_dev:
-                    st.session_state.trusted_devices.append(new_dev)
-                    st.success("تمت إضافة الجهاز بنجاح!")
-                    st.rerun()
+            if st.session_state.trusted_devices:
+                for d_idx, dev_item in enumerate(st.session_state.trusted_devices):
+                    col_d1, col_d2 = st.columns([4, 1])
+                    with col_d1:
+                        st.write(f"🔹 **{dev_item['name']}** (المستخدم: {dev_item['user']})")
+                    with col_d2:
+                        if st.button("إزالة الجهاز", key=f"del_dev_{d_idx}"):
+                            st.session_state.trusted_devices.pop(d_idx)
+                            st.success("تم إزالة الجهاز من قائمة الثقة بنجاح!")
+                            st.rerun()
+            else:
+                st.info("لا توجد أجهزة موثوقة مسجلة حالياً.")
 
         # 2. إدارة المستخدمين والصلاحيات
         with tab_sec2:
             st.subheader("👥 إدارة المستخدمين والصلاحيات")
-            st.write("إضافة يوزرات جديدة، تعديلها، أو مسحها، وتحديد الصلاحيات:")
             
-            # عرض جدول اليوزرات الحالية
             users_list = []
             for uname, udata in st.session_state.users_db.items():
                 role_ar = "أدمن (Admin)" if udata["role"] == "admin" else ("مدير (Manager)" if udata["role"] == "manager" else "موظف (User)")
@@ -366,7 +365,6 @@ else:
 
     # الواجهة الرئيسية (Main Portal) للمشاريع والأخبار
     else:
-        # لوحة تحكم المدير أو المدير التنفيذي (Admin & Manager) لإدارة المشاريع والأخبار
         if is_admin or is_manager:
             with st.expander("⚙️ لوحة تحكم المشاريع والملفات والأخبار"):
                 tab1, tab2, tab3 = st.tabs([
@@ -459,7 +457,6 @@ else:
                         st.markdown(f"#### {news['title']}")
                         st.write(news['content'])
                         
-                        # تغيير صورة الخبر (متاح للأدمن والمدير)
                         if is_admin or is_manager:
                             with st.expander(f"⚙️ تغيير صورة الخبر ({idx+1})"):
                                 changed_img = st.file_uploader("اختر صورة جديدة:", type=["png", "jpg", "jpeg"], key=f"news_ch_{idx}")
