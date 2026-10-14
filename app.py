@@ -280,7 +280,7 @@ else:
     st.title("📊 البوابة المركزية لتقارير ومشاريع ضمان الجودة")
     st.write("مرحباً بك في منصة متابعة المشاريع والتقارير التحليلية لشركة ليناركو.")
     
-    # قسم الأخبار والتحديثات (مع إتاحة زر تغيير الصورة تحت كل خبر للآدمن فقط)
+    # قسم الأخبار والتحديثات
     st.markdown("---")
     st.subheader("📰 آخر الأخبار والتحديثات الإدارية")
     
@@ -293,16 +293,6 @@ else:
                         st.image(news["image"], use_column_width=True)
                     st.markdown(f"#### {news['title']}")
                     st.write(news['content'])
-                    
-                    # زر تغيير صورة هذا الخبر (متاح للآدمن فقط مباشرة تحت الصورة)
-                    if is_admin:
-                        with st.expander(f"⚙️ تغيير صورة الخبر ({idx+1})"):
-                            changed_img = st.file_uploader("اختر صورة جديدة:", type=["png", "jpg", "jpeg"], key=f"news_ch_{idx}")
-                            if changed_img is not None:
-                                if st.button(f"حفظ الصورة الجديدة للخبر {idx+1}", key=f"btn_ch_{idx}"):
-                                    st.session_state.news_list[idx]["image"] = enhance_image_ai_style(changed_img)
-                                    st.success("تم تحديث صورة الخبر بنجاح بالذكاء الاصطناعي!")
-                                    st.rerun()
 
     st.markdown("---")
     st.subheader("📁 استعراض المشاريع والتقارير المتاحة")
