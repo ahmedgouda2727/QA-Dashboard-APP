@@ -25,6 +25,7 @@ st.markdown("""
     h1, h2, h3, h4, h5, h6 {
         text-align: right !important;
         color: #8B0000;
+        direction: rtl !important;
     }
     h1 { font-size: 38px !important; }
     h2 { font-size: 30px !important; color: #333333; }
@@ -53,11 +54,20 @@ st.markdown("""
         margin-bottom: 20px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         text-align: right !important;
+        direction: rtl !important;
     }
     
     /* ضبط محاذاة الحقول والتسميات */
     .stSelectbox, .stTextInput, .stTextArea, .stFileUploader {
         text-align: right !important;
+        direction: rtl !important;
+    }
+
+    /* فئة خاصة للمحاذاة الصريحة من اليمين للشمال */
+    .rtl-right {
+        direction: rtl !important;
+        text-align: right !important;
+        display: block !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -165,11 +175,29 @@ else:
     user_info = USERS[current_user_key]
     is_admin = user_info["role"] == "admin"
     
-    # الشريط الجانبي (Sidebar) في اليمين مع الشعارات
+    # الشريط الجانبي (Sidebar) في اليمين مع الشعارات وأزرار التغيير للآدمن
     with st.sidebar:
         st.image(st.session_state.company_logo, use_column_width=True)
+        # زر تغيير شعار الشركة تحت الصورة للآدمن فقط
+        if is_admin:
+            with st.expander("✏️ تغيير شعار الشركة"):
+                c_logo_up = st.file_uploader("رفع شعار ليناركو جديد:", type=["png", "jpg", "jpeg"], key="sb_c_logo")
+                if c_logo_up is not None and st.button("حفظ شعار الشركة الجديد"):
+                    st.session_state.company_logo = enhance_image_ai_style(c_logo_up)
+                    st.success("تم التحديث!")
+                    st.rerun()
+                    
         st.write("---")
         st.image(st.session_state.qa_logo, use_column_width=True)
+        # زر تغيير شعار قسم الجودة تحت الصورة للآدمن فقط
+        if is_admin:
+            with st.expander("✏️ تغيير شعار قسم الجودة"):
+                qa_logo_up = st.file_uploader("رفع شعار الجودة جديد:", type=["png", "jpg", "jpeg"], key="sb_qa_logo")
+                if qa_logo_up is not None and st.button("حفظ شعار الجودة الجديد"):
+                    st.session_state.qa_logo = enhance_image_ai_style(qa_logo_up)
+                    st.success("تم التحديث!")
+                    st.rerun()
+                    
         st.write("---")
         
         st.write(f"مرحباً بك، **{user_info['name']}** 👋")
@@ -183,12 +211,11 @@ else:
 
     # لوحة تحكم المدير
     if is_admin:
-        with st.expander("⚙️ لوحة تحكم المدير (إدارة المشاريع، الملفات، الأخبار، وتغيير الصور)"):
-            tab1, tab2, tab3, tab4 = st.tabs([
+        with st.expander("⚙️ لوحة تحكم المدير (إدارة المشاريع، الملفات، والأخبار)"):
+            tab1, tab2, tab3 = st.tabs([
                 "تعديل مشروع وإرفاق ملفات", 
                 "إضافة مشروع جديد", 
-                "إضافة خبر جديد (سلايدر)", 
-                "🖼️ إدارة وتغيير شعارات وصور النظام"
+                "إضافة خبر جديد (سلايدر)"
             ])
             
             # تعديل مشروع وإرفاق ملفات
@@ -261,28 +288,11 @@ else:
                     else:
                         st.warning("يرجى إدخال عنوان ومحتوى الخبر.")
 
-            # إدارة وتغيير شعارات وصور النظام
-            with tab4:
-                st.write("### 🏢 تغيير شعار شركة ليناركو")
-                new_c_logo = st.file_uploader("رفع شعار الشركة الجديد (PNG / JPG):", type=["png", "jpg", "jpeg"], key="c_logo_up")
-                if new_c_logo is not None:
-                    if st.button("تحديث شعار الشركة"):
-                        st.session_state.company_logo = enhance_image_ai_style(new_c_logo)
-                        st.success("تم تحديث وتحسين شعار الشركة بنجاح!")
-                        st.rerun()
-
-                st.write("---")
-                st.write("### 🛡️ تغيير شعار قسم ضمان الجودة (QA)")
-                new_qa_logo = st.file_uploader("رفع شعار قسم الجودة الجديد (PNG / JPG):", type=["png", "jpg", "jpeg"], key="qa_logo_up")
-                if new_qa_logo is not None:
-                    if st.button("تحديث شعار الجودة"):
-                        st.session_state.qa_logo = enhance_image_ai_style(new_qa_logo)
-                        st.success("تم تحديث وتحسين شعار قسم الجودة بنجاح!")
-                        st.rerun()
-
     # الواجهة الرئيسية (Main Portal)
     st.title("📊 البوابة المركزية لتقارير ومشاريع ضمان الجودة")
-    st.write("مرحباً بك في منصة متابعة المشاريع والتقارير التحليلية لشركة ليناركو.")
+    
+    # الجملة الترحيبية الأولى مضبوطة من اليمين للشمال
+    st.markdown('<p class="rtl-right">مرحباً بك في منصة متابعة المشاريع والتقارير التحليلية لشركة ليناركو.</p>', unsafe_allow_html=True)
     
     # قسم الأخبار والتحديثات
     st.markdown("---")
@@ -297,6 +307,16 @@ else:
                         st.image(news["image"], use_column_width=True)
                     st.markdown(f"#### {news['title']}")
                     st.write(news['content'])
+                    
+                    # زر تغيير صورة الخبر مباشرة تحت الصورة للآدمن
+                    if is_admin:
+                        with st.expander(f"⚙️ تغيير صورة الخبر ({idx+1})"):
+                            changed_img = st.file_uploader("اختر صورة جديدة:", type=["png", "jpg", "jpeg"], key=f"news_ch_{idx}")
+                            if changed_img is not None:
+                                if st.button(f"حفظ الصورة الجديدة للخبر {idx+1}", key=f"btn_ch_{idx}"):
+                                    st.session_state.news_list[idx]["image"] = enhance_image_ai_style(changed_img)
+                                    st.success("تم تحديث صورة الخبر بنجاح!")
+                                    st.rerun()
 
     st.markdown("---")
     st.subheader("📁 استعراض المشاريع والتقارير المتاحة")
@@ -333,9 +353,11 @@ else:
                     mime="application/octet-stream"
                 )
         else:
-            st.caption("لا توجد ملفات مرفقة حالياً لهذا المشروع.")
+            # الجملة الثانية مضبوطة محاذاة من اليمين للشمال
+            st.markdown('<p class="rtl-right" style="color: gray; font-size: 16px;">لا توجد ملفات مرفقة حالياً لهذا المشروع.</p>', unsafe_allow_html=True)
         
-        st.markdown(f"🔗 **رابط مباشر:** [اضغط هنا لفتح المشروع في تبويب جديد]({dash_data['url']})")
+        # الجملة الثالثة والرابط المباشر مضبوط من اليمين للشمال
+        st.markdown(f'<p class="rtl-right">🔗 <b>رابط مباشر:</b> <a href="{dash_data["url"]}" target="_blank">اضغط هنا لفتح المشروع في تبويب جديد</a></p>', unsafe_allow_html=True)
         
         st.markdown("---")
         
