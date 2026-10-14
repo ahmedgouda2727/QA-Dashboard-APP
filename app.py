@@ -1,7 +1,9 @@
 import streamlit as st
 from PIL import Image, ImageEnhance
 import io
+import requests
 import pyotp
+import qrcode
 
 # إعدادات صفحة الويب
 st.set_page_config(page_title="لوحة تحكم قسم الجودة - ليناركو", page_icon="📊", layout="wide")
@@ -9,12 +11,10 @@ st.set_page_config(page_title="لوحة تحكم قسم الجودة - لينا�
 # تخصيص وتكبير الخطوط، قلب الاتجاه إلى RTL، ونقل الشريط الجانبي لليمين
 st.markdown("""
     <style>
-    /* إخفاء شريط أدوات Streamlit العلوي (Toolbar) */
     header {visibility: hidden !important;}
     #MainMenu {visibility: hidden !important;}
     footer {visibility: hidden !important;}
     
-    /* جعل الاتجاه من اليمين لليسار لكافة عناصر الصفحة والنصوص العربية */
     html, body, [class*="css"] {
         direction: rtl !important;
         text-align: right !important;
@@ -22,7 +22,6 @@ st.markdown("""
         font-size: 20px !important;
     }
     
-    /* تكبير خط العناوين وتثبيت محاذاتها لليمين */
     h1, h2, h3, h4, h5, h6 {
         text-align: right !important;
         color: #8B0000;
@@ -32,7 +31,6 @@ st.markdown("""
     h2 { font-size: 30px !important; color: #333333; }
     h3 { font-size: 24px !important; }
 
-    /* نقل الشريط الجانبي (Sidebar) إلى اليمين وعكس اتجاهه */
     [data-testid="stSidebar"] {
         right: 0px !important;
         left: auto !important;
@@ -40,13 +38,11 @@ st.markdown("""
         text-align: right !important;
     }
     
-    /* تعديل مكان محتوى الصفحة الرئيسية ليترك مساحة للشريط الجانبي الأيمن */
     .main .block-container {
         direction: rtl !important;
         text-align: right !important;
     }
 
-    /* تنسيق كاردات المشاريع والأخبار */
     .project-card {
         background-color: #f9f9f9;
         border: 1px solid #e0e0e0;
@@ -58,13 +54,11 @@ st.markdown("""
         direction: rtl !important;
     }
     
-    /* ضبط محاذاة الحقول والتسميات */
     .stSelectbox, .stTextInput, .stTextArea, .stFileUploader {
         text-align: right !important;
         direction: rtl !important;
     }
 
-    /* فئة خاصة للمحاذاة الصريحة من اليمين للشمال */
     .rtl-right {
         direction: rtl !important;
         text-align: right !important;
@@ -89,10 +83,6 @@ def enhance_image_ai_style(image_file):
     img.save(buffered, format="PNG")
     return buffered.getvalue()
 
-# المفتاح السري الموحد لتطبيق Google Authenticator (يمكن للآدمن تغييره من اللوحة)
-if "totp_secret" not in st.session_state:
-    st.session_state.totp_secret = "JBSWY3DPEHPK3PXP" # مفتاح سري افتراضي
-
 # 1. الداشبوردات والمشاريع الافتراضية
 DEFAULT_DASHBOARDS = {
     "مؤشرات أداء قسم الـ QA": {
@@ -109,7 +99,7 @@ DEFAULT_DASHBOARDS = {
     }
 }
 
-# 2. أخبار قسم الجودة (Slider / Recent News)
+# 2. أخبار قسم الجودة
 DEFAULT_NEWS = [
     {
         "title": "📢 إطلاق نظام إدارة الجودة الجديد للعام الحالي",
@@ -123,7 +113,7 @@ DEFAULT_NEWS = [
     }
 ]
 
-# 3. قاموس حسابات المستخدمين وكلمات المرور
+# 3. حسابات المستخدمين
 USERS = {
     "admin": {"password": "123", "name": "مدير النظام", "role": "admin"},
     "hossam.saeed@fnrco.com.sa": {"password": "HS123", "name": "حسام سعيد", "role": "user"},
@@ -134,9 +124,6 @@ USERS = {
     "nancy.safwat@fnrco.com.sa": {"password": "NS123", "name": "نانسي صفوت", "role": "user"},
     "abdallah.zaukzouk@fnrco.com.sa": {"password": "AZ123", "name": "عبد الله زقزوق", "role": "user"}
 }
-
-# رمز الشبكة الداخلية للشركة (Network PIN)
-COMPANY_NETWORK_PIN = "Linrco2026"
 
 # 4. إدارة حالة التطبيق (Session State)
 if "dashboards" not in st.session_state:
@@ -151,70 +138,65 @@ if "company_logo" not in st.session_state:
 if "qa_logo" not in st.session_state:
     st.session_state.qa_logo = "https://raw.githubusercontent.com/ahmedgouda2727/QA-Dashboard-APP/main/QA.png"
 
+# مفتاح سري ثابت لتوليد أكواد Google Authenticator (يمكن للآدمن تعديله من إعداداته)
+if "totp_secret" not in st.session_state:
+    st.session_state.totp_secret = pyotp.random_base32()
+
+# قائمة الأجهزة الموثوقة (Trusted Devices) لجلسة المتصفح الحالي
+if "device_trusted" not in st.session_state:
+    st.session_state.device_trusted = False
+
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+
+if "2fa_passed" not in st.session_state:
+    st.session_state.2fa_passed = False
 
 if "username" not in st.session_state:
     st.session_state.username = ""
 
-# الاحتفاظ بالأجهزة الموثوقة (Trusted Devices) في الـ Session
-if "trusted_devices" not in st.session_state:
-    st.session_state.trusted_devices = set()
-
-# 5. شاشة تسجيل الدخول المدمجة بالرمز السري ومصادقة Google Authenticator
+# 5. شاشة تسجيل الدخول
 if not st.session_state.logged_in:
     st.title("🔐 تسجيل الدخول إلى نظام الداشبوردات - ليناركو")
-    st.write("الرجاء إدخال بيانات الحساب ورمز أمان المقر.")
+    st.write("الرجاء إدخال البريد الإلكتروني / اسم المستخدم وكلمة المرور.")
     
     with st.form("login_form"):
         username_input = st.text_input("اسم المستخدم / البريد الإلكتروني")
         password_input = st.text_input("كلمة المرور", type="password")
-        network_pin_input = st.text_input("🔑 رمز أمان شبكة الشركة (Network PIN)", type="password")
-        
-        # معرف افتراضي للجهاز الحالي
-        device_id = f"{username_input.strip().lower()}_trusted_device"
-        is_device_trusted = device_id in st.session_state.trusted_devices
-        
-        # حقل رمز Google Authenticator (يطلب فقط إذا لم يكن الجهاز موثوقاً)
-        if not is_device_trusted:
-            otp_input = st.text_input("📲 رمز المصادقة (Google Authenticator App)", help="أدخل الرمز المكون من 6 أرقام والموجود على موبايل الشركة")
-            remember_device = st.checkbox("طلب التوثيق والوثوق بهذا الجهاز (Trust this device) لتخطي رمز الأمان لاحقاً")
-        else:
-            st.info("🟢 هذا الجهاز موثوق ومسجل بالفعل (Trusted Device).")
-            otp_input = None
-            remember_device = False
-
-        submit_button = st.form_submit_button("دخول للنظام")
+        submit_button = st.form_submit_button("دخول")
         
         if submit_button:
             clean_username = username_input.strip().lower()
-            
-            # التحقق من اسم المستخدم وكلمة المرور ورمز المقر
             if clean_username in USERS and USERS[clean_username]["password"] == password_input:
-                if network_pin_input != COMPANY_NETWORK_PIN:
-                    st.error("❌ رمز أمان شبكة الشركة (Network PIN) غير صحيح.")
-                else:
-                    # التحقق من رمز Google Authenticator إذا كان الجهاز غير موثوق
-                    if not is_device_trusted:
-                        totp = pyotp.TOTP(st.session_state.totp_secret)
-                        if not otp_input or not totp.verify(otp_input):
-                            st.error("❌ رمز المصادقة (Google Authenticator Code) غير صحيح أو منتهي الصلاحية.")
-                        else:
-                            if remember_device:
-                                st.session_state.trusted_devices.add(device_id)
-                            st.session_state.logged_in = True
-                            st.session_state.username = clean_username
-                            st.success("تم تسجيل الدخول وتوثيق الجهاز بنجاح!")
-                            st.rerun()
-                    else:
-                        st.session_state.logged_in = True
-                        st.session_state.username = clean_username
-                        st.success("تم تسجيل الدخول بنجاح!")
-                        st.rerun()
+                st.session_state.logged_in = True
+                st.session_state.username = clean_username
+                st.success("تم التحقق من بيانات الدخول بنجاح!")
+                st.rerun()
             else:
                 st.error("اسم المستخدم أو كلمة المرور غير صحيحة.")
 
-# 6. الشاشة الرئيسية بعد تسجيل الدخول
+# 6. شاشة التحقق الثنائي عبر Google Authenticator (إذا لم يكن الجهاز موثوقاً)
+elif st.session_state.logged_in and not st.session_state.device_trusted and not st.session_state.2fa_passed:
+    st.title("🛡️ التحقق الثنائي الأمني (Google Authenticator)")
+    st.write("هذا الجهاز غير موثوق. يرجى إدخال رمز التحقق المكون من 6 أرقام من تطبيق Google Authenticator على موبايل الشركة:")
+    
+    with st.form("2fa_form"):
+        totp_code = st.text_input("رمز التحقق (6 أرقام):", max_chars=6)
+        trust_this_device = st.checkbox("وثق هذا الجهاز (عدم طلب الرمز مرة أخرى على هذا المتصفح)")
+        verify_btn = st.form_submit_button("تحقق ودخول")
+        
+        if verify_btn:
+            totp = pyotp.TOTP(st.session_state.totp_secret)
+            if totp.verify(totp_code):
+                st.session_state.2fa_passed = True
+                if trust_this_device:
+                    st.session_state.device_trusted = True
+                st.success("تم التحقق بنجاح!")
+                st.rerun()
+            else:
+                st.error("رمز التحقق غير صحيح أو انتهت صلاحيته.")
+
+# 7. الشاشة الرئيسية بعد اجتياز الأمان بالكامل
 else:
     current_user_key = st.session_state.username
     user_info = USERS[current_user_key]
@@ -249,17 +231,18 @@ else:
         
         if st.button("تسجيل الخروج"):
             st.session_state.logged_in = False
+            st.session_state.2fa_passed = False
             st.session_state.username = ""
             st.rerun()
 
-    # لوحة تحكم المدير (تتضمن قسم الـ Google Authenticator للآدمن فقط)
+    # لوحة تحكم المدير (مع إعدادات الـ Authenticator الخاصة بالآدمن فقط)
     if is_admin:
-        with st.expander("⚙️ لوحة تحكم المدير (إدارة المشاريع، الملفات، الأخبار، وإعدادات الـ 2FA)"):
+        with st.expander("⚙️ لوحة تحكم المدير (إدارة المشاريع، الملفات، الأخبار، وإعدادات الأمان)"):
             tab1, tab2, tab3, tab4 = st.tabs([
                 "تعديل مشروع وإرفاق ملفات", 
                 "إضافة مشروع جديد", 
                 "إضافة خبر جديد (سلايدر)",
-                "📲 إعدادات Google Authenticator (خاص للآدمن فقط)"
+                "🔒 إعدادات Google Authenticator (للمدير فقط)"
             ])
             
             with tab1:
@@ -270,7 +253,7 @@ else:
                     new_desc = st.text_area("الوصف والشرح:", value=current_dash["description"], key="edit_desc")
                     new_url = st.text_input("الرابط (URL):", value=current_dash["url"], key="edit_url")
                     
-                    st.write("📎 **إرفاق مستند أو ملف (Word, Excel, PDF, Power BI, Visio, Access, Outlook):**")
+                    st.write("📎 **إرفاق مستند أو ملف:**")
                     uploaded_file = st.file_uploader("اختر الملف للرفع:", type=["docx", "xlsx", "pdf", "vsdx", "pbix", "accdb", "msg", "txt"], key=f"up_{edit_key}")
                     
                     if st.button("حفظ التعديلات ورفع الملف"):
@@ -310,7 +293,7 @@ else:
                 news_title = st.text_input("عنوان الخبر أو التحديث:", key="news_t")
                 news_content = st.text_area("محتوى الخبر وتفاصيله:", key="news_c")
                 
-                st.write("🖼️ **صورة الخبر (معالجة ذكية للحواف والجودة):**")
+                st.write("🖼️ **صورة الخبر:**")
                 news_img_file = st.file_uploader("اختر صورة الخبر:", type=["png", "jpg", "jpeg"], key="news_img_upload")
                 
                 if st.button("نشر الخبر في السلايدر"):
@@ -324,26 +307,34 @@ else:
                             "content": news_content,
                             "image": img_path
                         })
-                        st.success("تم نشر الخبر بنجاح مع ضبط الحدود والجودة بالذكاء الاصطناعي!")
+                        st.success("تم نشر الخبر بنجاح!")
                         st.rerun()
                     else:
                         st.warning("يرجى إدخال عنوان ومحتوى الخبر.")
 
-            # 🔒 القسم الخاص بالآدمن لإعداد وربط Google Authenticator
+            # تبويب إعدادات الـ Authenticator الخاص بالآدمن فقط
             with tab4:
-                st.write("### 🔑 إدارة رمز المصادقة الثنائية (Google Authenticator)")
-                st.write("امسح هذا المفتاح برمجياً في تطبيق Google Authenticator على موبايل الشركة فقط:")
+                st.write("### 📱 ربط تطبيق Google Authenticator بموبايل الإدارة")
+                st.write("قم بمسح كود الـ QR الآتي باستخدام تطبيق Google Authenticator على موبايل الشركة لربطه بالنظام:")
                 
-                totp = pyotp.TOTP(st.session_state.totp_secret)
-                provisioning_uri = totp.provisioning_uri(name="QA_Linrco_Admin", issuer_name="Linrco")
+                # توليد رابط الـ QR Code لتطبيق المصادقة
+                totp_uri = pyotp.totp.TOTP(st.session_state.totp_secret).provisioning_uri(
+                    name="Linrco-QA-Admin",
+                    issuer_name="Linrco Quality Assurance"
+                )
                 
-                st.code(f"المفتاح السري (Secret Key): {st.session_state.totp_secret}")
-                st.info("💡 يمكنك إضافة هذا المفتاح السري يدوياً في تطبيق Google Authenticator بفتح التطبيق واختيار 'Enter a setup key'.")
+                # رسم الـ QR Code وعرضه حصرياً للآدمن
+                img_qr = qrcode.make(totp_uri)
+                buf = io.BytesIO()
+                img_qr.save(buf)
+                st.image(buf.getvalue(), width=250)
                 
-                # إمكانية للآدمن لتوليد مفتاح سري جديد في حال رغب في ذلك
-                if st.button("توليد مفتاح سري جديد للـ 2FA"):
+                st.code(st.session_state.totp_secret, language="text")
+                st.info("💡 المفتاح السري بالأعلى يمكنك نسخه وإدخاله يدويًا في تطبيق المصادقة إذا واجهتك مشكلة في مسح الـ QR.")
+                
+                if st.button("🔄 توليد مفتاح سري جديد (إبطال الموبايلات السابقة)"):
                     st.session_state.totp_secret = pyotp.random_base32()
-                    st.success("تم إعادة تعيين المفتاح السري! يرجى إعادة ربطه بموبايل الشركة.")
+                    st.success("تم تحديث مفتاح المصادقة بنجاح!")
                     st.rerun()
 
     # الواجهة الرئيسية (Main Portal)
