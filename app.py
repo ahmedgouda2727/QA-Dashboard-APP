@@ -3,9 +3,14 @@ import streamlit as st
 # إعدادات صفحة الويب
 st.set_page_config(page_title="لوحة تحكم الداشبورد", page_icon="📊", layout="wide")
 
-# تخصيص وتكبير الخطوط في جميع عناصر الصفحة
+# تخصيص وتكبير الخطوط وإخفاء شريط أدوات Streamlit العلوي بالكامل
 st.markdown("""
     <style>
+    /* إخفاء شريط أدوات Streamlit العلوي (Toolbar) وأزرار المشاركة والتعديل */
+    header {visibility: hidden !important;}
+    #MainMenu {visibility: hidden !important;}
+    footer {visibility: hidden !important;}
+    
     /* تكبير الخط العام في الصفحة */
     html, body, [class*="css"] {
         font-size: 28px !important;
@@ -15,7 +20,7 @@ st.markdown("""
     h2 { font-size: 36px !important; }
     h3 { font-size: 32px !important; }
     
-    /* تكبير خط التسميات (Labels) والحقول */
+    /* تكبير خط التسميات والحقول */
     .stSelectbox label, .stTextInput label, .stPassword label, .stTextArea label {
         font-size: 20px !important;
         font-weight: bold !important;
