@@ -138,19 +138,17 @@ if "company_logo" not in st.session_state:
 if "qa_logo" not in st.session_state:
     st.session_state.qa_logo = "https://raw.githubusercontent.com/ahmedgouda2727/QA-Dashboard-APP/main/QA.png"
 
-# مفتاح سري ثابت لتوليد أكواد Google Authenticator (يمكن للآدمن تعديله من إعداداته)
 if "totp_secret" not in st.session_state:
     st.session_state.totp_secret = pyotp.random_base32()
 
-# قائمة الأجهزة الموثوقة (Trusted Devices) لجلسة المتصفح الحالي
 if "device_trusted" not in st.session_state:
     st.session_state.device_trusted = False
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
-if "2fa_passed" not in st.session_state:
-    st.session_state.2fa_passed = False
+if "two_fa_passed" not in st.session_state:
+    st.session_state.two_fa_passed = False
 
 if "username" not in st.session_state:
     st.session_state.username = ""
@@ -175,10 +173,10 @@ if not st.session_state.logged_in:
             else:
                 st.error("اسم المستخدم أو كلمة المرور غير صحيحة.")
 
-# 6. شاشة التحقق الثنائي عبر Google Authenticator (إذا لم يكن الجهاز موثوقاً)
-elif st.session_state.logged_in and not st.session_state.device_trusted and not st.session_state.2fa_passed:
+# 6. شاشة التحقق الثنائي عبر Google Authenticator
+elif st.session_state.logged_in and not st.session_state.device_trusted and not st.session_state.two_fa_passed:
     st.title("🛡️ التحقق الثنائي الأمني (Google Authenticator)")
-    st.write("هذا الجهاز غير موثوق. يرجى إدخال رمز التحقق المكون من 6 أرقام من تطبيق Google Authenticator على موبايل الشركة:")
+    st.write("هذا الجهاز غير موثوق. يرجى إدخال رمز التحقق المكون من 6 أرقام من تطبيق Google Authenticator:")
     
     with st.form("2fa_form"):
         totp_code = st.text_input("رمز التحقق (6 أرقام):", max_chars=6)
@@ -188,7 +186,7 @@ elif st.session_state.logged_in and not st.session_state.device_trusted and not 
         if verify_btn:
             totp = pyotp.TOTP(st.session_state.totp_secret)
             if totp.verify(totp_code):
-                st.session_state.2fa_passed = True
+                st.session_state.two_fa_passed = True
                 if trust_this_device:
                     st.session_state.device_trusted = True
                 st.success("تم التحقق بنجاح!")
@@ -231,11 +229,11 @@ else:
         
         if st.button("تسجيل الخروج"):
             st.session_state.logged_in = False
-            st.session_state.2fa_passed = False
+            st.session_state.two_fa_passed = False
             st.session_state.username = ""
             st.rerun()
 
-    # لوحة تحكم المدير (مع إعدادات الـ Authenticator الخاصة بالآدمن فقط)
+    # لوحة تحكم المدير
     if is_admin:
         with st.expander("⚙️ لوحة تحكم المدير (إدارة المشاريع، الملفات، الأخبار، وإعدادات الأمان)"):
             tab1, tab2, tab3, tab4 = st.tabs([
@@ -312,18 +310,15 @@ else:
                     else:
                         st.warning("يرجى إدخال عنوان ومحتوى الخبر.")
 
-            # تبويب إعدادات الـ Authenticator الخاص بالآدمن فقط
             with tab4:
                 st.write("### 📱 ربط تطبيق Google Authenticator بموبايل الإدارة")
                 st.write("قم بمسح كود الـ QR الآتي باستخدام تطبيق Google Authenticator على موبايل الشركة لربطه بالنظام:")
                 
-                # توليد رابط الـ QR Code لتطبيق المصادقة
                 totp_uri = pyotp.totp.TOTP(st.session_state.totp_secret).provisioning_uri(
                     name="Linrco-QA-Admin",
                     issuer_name="Linrco Quality Assurance"
                 )
                 
-                # رسم الـ QR Code وعرضه حصرياً للآدمن
                 img_qr = qrcode.make(totp_uri)
                 buf = io.BytesIO()
                 img_qr.save(buf)
