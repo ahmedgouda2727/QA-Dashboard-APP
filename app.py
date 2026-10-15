@@ -11,6 +11,7 @@
 #   psycopg2-binary>=2.9      # only needed for PostgreSQL
 #   pyotp>=2.9                # two-factor authentication
 #   qrcode[pil]>=7.4          # QR code for 2FA enrolment
+#   Pillow>=10.0
 #   requests>=2.31            # Looker Studio short-link resolution (optional)
 #   pytest>=8.0               # tests:  pytest app.py
 #
@@ -52,7 +53,6 @@ import operator
 import os
 import re
 import smtplib
-import sys
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -64,10 +64,9 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import (Boolean, Date, DateTime, Float, ForeignKey, Integer,
                         LargeBinary, String, Text, UniqueConstraint, create_engine,
-                        event, false, func, or_, select, text)
+                        event, func, or_, select, text)
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import (DeclarativeBase, Mapped, Session, mapped_column,
-                            relationship, sessionmaker)
+from sqlalchemy.orm import (DeclarativeBase, Mapped, Session, mapped_column)
 
 try:
     import pyotp
@@ -939,7 +938,6 @@ def render_setup():
                 with S() as s:
                     create_user(s, email, name, p1, "system_admin")
                     s.flush()
-                st.success(L("تم الإنشاء. سجّل الدخول الآن.", "Created. Please sign in."))
                 st.rerun()
 
 
@@ -1347,6 +1345,7 @@ header[data-testid="stHeader"]{{background:transparent}}
 iframe{{border:1px solid var(--line)!important;border-radius:12px;background:#fff}}
 @media(max-width:768px){{.block-container{{padding:.6rem}}}}
 </style>""", unsafe_allow_html=True)
+    st.session_state["_css_sig"] = (lang(), st.session_state.get("theme"))
 
 
 def card(label, value, sub=""):
@@ -1642,8 +1641,6 @@ def crud_page(cfg, user):
             if obj is None:
                 st.error(L("السجل غير موجود أو لا تملك صلاحية الوصول", "Record not found or access denied"))
                 return
-            if cfg.key == "documents" or True:
-                pass
             ref = getattr(obj, cfg.ref_field, "")
             st.session_state["crumb_record"] = str(ref)
             head = f"### {esc(str(ref))} — {esc(str(getattr(obj, cfg.name_attr, '') or ''))}"
@@ -1819,7 +1816,7 @@ def review_extra(s, user, r):
                 f"{'—' if score is None else str(score) + '%'}")
     if not r.checklist_id:
         st.info(L("اربط قائمة فحص من تبويب التفاصيل.", "Link a checklist from the Details tab."))
-    elif r.status in ("draft", "scheduled", "in_progress", "under_review") or True:
+    else:
         editable = can(user, "reviews", "update") and r.status in ("in_progress", "under_review")
         if not editable:
             st.caption(L("الإجابات قابلة للتعديل أثناء حالة «قيد التنفيذ» أو «قيد المراجعة».",
@@ -1835,11 +1832,11 @@ def review_extra(s, user, r):
                 t = it.question_type
                 if t in ("yes_no", "pass_fail"):
                     opts = ["", "yes", "no"] if t == "yes_no" else ["", "pass", "fail"]
-                    v = st.selectbox("", opts, index=opts.index(cur) if cur in opts else 0, key=k, disabled=not editable,
+                    v = st.selectbox("answer", opts, index=opts.index(cur) if cur in opts else 0, key=k, disabled=not editable,
                                      format_func=lambda x: "—" if x == "" else x, label_visibility="collapsed")
                 elif t == "multiple_choice":
                     opts = [""] + [c for c, _ in parse_choices(it.choices)]
-                    v = st.selectbox("", opts, index=opts.index(cur) if cur in opts else 0, key=k, disabled=not editable,
+                    v = st.selectbox("answer", opts, index=opts.index(cur) if cur in opts else 0, key=k, disabled=not editable,
                                      format_func=lambda x: "—" if x == "" else x, label_visibility="collapsed")
                 elif t == "numeric_score":
                     v = st.text_input(f"0 – {it.max_score}", value=cur or "", key=k, disabled=not editable)
@@ -1848,10 +1845,10 @@ def review_extra(s, user, r):
                         dv = date.fromisoformat(cur) if cur else None
                     except ValueError:
                         dv = None
-                    d_ = st.date_input("", value=dv, key=k, disabled=not editable, label_visibility="collapsed")
+                    d_ = st.date_input("answer", value=dv, key=k, disabled=not editable, label_visibility="collapsed")
                     v = d_.isoformat() if d_ else ""
                 else:
-                    v = st.text_area("", value=cur or "", key=k, disabled=not editable, label_visibility="collapsed")
+                    v = st.text_area("answer", value=cur or "", key=k, disabled=not editable, label_visibility="collapsed")
                 cm = st.text_input(L("تعليق / دليل" + (" (مطلوب)" if it.evidence_required else ""),
                                      "Comment / evidence" + (" (required)" if it.evidence_required else "")),
                                    value=a.comment if a else "", key=k + "_c", disabled=not editable)
@@ -2224,20 +2221,22 @@ def move_task(tid, status, user_id):
                 t.status = status
                 task_on_save(s, user, t, False)
                 log_status(s, user, "tasks", t, old, status)
-    except PermissionError as exc:
-        st.session_state["flash_error"] = str(exc)
+    except PermissionError:
+        st.session_state["flash_error"] = True
 
 
 def tasks_page(user):
-    view = st.radio("", [L("قائمة", "List"), L("كانبان", "Kanban"), L("تقويم", "Calendar")], horizontal=True,
-                    key="tasks_mode", label_visibility="collapsed")
-    if view == L("قائمة", "List"):
+    mode = st.radio("view", ["list", "kanban", "calendar"], horizontal=True, key="tasks_mode", label_visibility="collapsed",
+                    format_func=lambda m: {"list": L("قائمة", "List"), "kanban": L("كانبان", "Kanban"), "calendar": L("تقويم", "Calendar")}[m])
+    if st.session_state.pop("flash_error", None):
+        st.error(L("ليست لديك صلاحية", "Not permitted"))
+    if mode == "list":
         crud_page(CFGS["tasks"], user)
         return
     with S() as s:
         tasks = fetch(s, user, Task)
         emp = _lookup(s, {}, Employee, "full_name")
-        if view == L("كانبان", "Kanban"):
+        if mode == "kanban":
             cols = st.columns(4)
             flow = ["todo", "in_progress", "blocked", "done"]
             for i, stt in enumerate(flow):
@@ -2257,10 +2256,10 @@ def tasks_page(user):
             rows = [{L("التاريخ", "Date"): t.due_date, L("المهمة", "Task"): t.title, L("المسؤول", "Assignee"): emp.get(t.assignee_id, ""),
                      L("الحالة", "Status"): lab(t.status), "⚠": "⚠" if t.due_date and t.due_date < date.today() and t.status not in ("done", "cancelled") else ""}
                     for t in tasks if t.due_date]
-            df = pd.DataFrame(rows).sort_values(L("التاريخ", "Date")) if rows else pd.DataFrame()
-            st.dataframe(df, hide_index=True, use_container_width=True) if not df.empty else st.info(L("لا توجد مهام بتواريخ", "No dated tasks"))
-    if st.session_state.pop("flash_error", None):
-        st.error(L("ليست لديك صلاحية", "Not permitted"))
+            if rows:
+                st.dataframe(pd.DataFrame(rows).sort_values(L("التاريخ", "Date")), hide_index=True, use_container_width=True)
+            else:
+                st.info(L("لا توجد مهام بتواريخ", "No dated tasks"))
 
 
 # ---- KPIs --------------------------------------------------------------------
@@ -2362,6 +2361,10 @@ def v_chk(s, values, rid):
     return [L("حد النجاح بين 0 و 100", "Threshold must be 0–100")] if isinstance(t, float) and not 0 <= t <= 100 else []
 
 
+_ITEM_COLS = ("sequence", "question", "criteria", "question_type", "choices", "is_mandatory", "evidence_required", "weight", "max_score", "is_scored")
+_QTYPES = ["yes_no", "pass_fail", "multiple_choice", "numeric_score", "text", "date", "evidence_required"]
+
+
 def chk_extra(s, user, c):
     st.caption(f"{L('الإصدار', 'Version')}: {c.version}")
     used = s.scalar(select(func.count(ReviewAnswer.id)).join(ChecklistItem, ReviewAnswer.item_id == ChecklistItem.id)
@@ -2369,9 +2372,7 @@ def chk_extra(s, user, c):
     can_edit = can(user, "checklists", "update") and not used
     if used:
         st.info(L("هذه القائمة مستخدمة في مراجعات؛ أنشئ إصداراً جديداً للتعديل.", "This checklist is used in reviews; create a new version to change it."))
-    df = pd.DataFrame([{"sequence": i.sequence, "question": i.question, "criteria": i.criteria, "question_type": i.question_type,
-                        "choices": i.choices, "is_mandatory": i.is_mandatory, "evidence_required": i.evidence_required,
-                        "weight": i.weight, "max_score": i.max_score, "is_scored": i.is_scored} for i in c.items])
+    df = pd.DataFrame([{k: getattr(i, k) for k in _ITEM_COLS} for i in c.items])
     if df.empty:
         df = pd.DataFrame({"sequence": pd.Series(dtype="int"), "question": pd.Series(dtype="str"), "criteria": pd.Series(dtype="str"),
                            "question_type": pd.Series(dtype="str"), "choices": pd.Series(dtype="str"),
@@ -2380,25 +2381,29 @@ def chk_extra(s, user, c):
     st.caption(L("الاختيار المتعدد: سطر لكل خيار، ويمكن إضافة نقاط هكذا «جيد:1» أو «مقبول:0.5».",
                  "Multiple choice: one option per line, optionally with credit like 'Good:1' or 'Fair:0.5'."))
     edited = st.data_editor(df, num_rows="dynamic", use_container_width=True, disabled=not can_edit, key=f"chk_ed_{c.id}",
-                            column_config={"question_type": st.column_config.SelectboxColumn(options=["yes_no", "pass_fail", "multiple_choice", "numeric_score", "text", "date", "evidence_required"])})
+                            column_config={"question_type": st.column_config.SelectboxColumn(options=_QTYPES)})
     if can_edit and st.button(L("حفظ البنود", "Save items"), type="primary", key=f"chk_save_{c.id}"):
         errs, rows = [], []
         for n, r in edited.iterrows():
             q = str(r.get("question") or "").strip()
-            if not q:
+            if not q or q == "nan":
                 continue
             qt = r.get("question_type") if isinstance(r.get("question_type"), str) else "yes_no"
-            if qt not in ("yes_no", "pass_fail", "multiple_choice", "numeric_score", "text", "date", "evidence_required"):
+            if qt not in _QTYPES:
                 errs.append(f"#{n + 1}: invalid type")
             if qt == "multiple_choice" and len(parse_choices(r.get("choices"))) < 2:
                 errs.append(f"#{n + 1}: " + L("خياران على الأقل", "at least two choices"))
-            w, ms = float(r.get("weight") or 1.0), float(r.get("max_score") or 1.0)
+            w = float(r.get("weight") if pd.notna(r.get("weight")) else 1.0)
+            ms = float(r.get("max_score") if pd.notna(r.get("max_score")) else 1.0)
             if w <= 0 or ms <= 0:
                 errs.append(f"#{n + 1}: " + L("الوزن والدرجة العظمى > 0", "weight and max score must be > 0"))
-            rows.append(ChecklistItem(sequence=int(r.get("sequence") or (n + 1) * 10), question=q, criteria=str(r.get("criteria") or ""),
-                                      question_type=qt, choices=str(r.get("choices") or ""), is_mandatory=bool(r.get("is_mandatory", True)),
-                                      evidence_required=bool(r.get("evidence_required", False)), weight=w, max_score=ms,
-                                      is_scored=bool(r.get("is_scored", True))))
+            seq = int(r.get("sequence")) if pd.notna(r.get("sequence")) else (n + 1) * 10
+            crit = r.get("criteria") if isinstance(r.get("criteria"), str) else ""
+            chs = r.get("choices") if isinstance(r.get("choices"), str) else ""
+            flag = lambda name, dflt: bool(r.get(name)) if pd.notna(r.get(name)) else dflt  # noqa: E731
+            rows.append(ChecklistItem(sequence=seq, question=q, criteria=crit, question_type=qt, choices=chs,
+                                      is_mandatory=flag("is_mandatory", True), evidence_required=flag("evidence_required", False),
+                                      weight=w, max_score=ms, is_scored=flag("is_scored", True)))
         if errs:
             for e in errs:
                 st.error(e)
@@ -2414,7 +2419,7 @@ def chk_extra(s, user, c):
         if c1.button(L("نسخ كقالب جديد", "Duplicate as new template"), key=f"chk_dup_{c.id}"):
             n = Checklist(code=f"{c.code}-COPY-{uuid.uuid4().hex[:4].upper()}", version=1, title=f"{c.title} (copy)", description=c.description,
                           department_id=c.department_id, process_id=c.process_id, pass_threshold=c.pass_threshold)
-            n.items = [ChecklistItem(**{k: getattr(i, k) for k in ("sequence", "question", "criteria", "question_type", "choices", "is_mandatory", "evidence_required", "weight", "max_score", "is_scored")}) for i in c.items]
+            n.items = [ChecklistItem(**{k: getattr(i, k) for k in _ITEM_COLS}) for i in c.items]
             s.add(n)
             s.flush()
             audit(s, user, "duplicate", "checklists", n.id, n.code)
@@ -2424,7 +2429,7 @@ def chk_extra(s, user, c):
             top = s.scalar(select(func.max(Checklist.version)).where(Checklist.code == c.code)) or 1
             n = Checklist(code=c.code, version=top + 1, title=c.title, description=c.description, department_id=c.department_id,
                           process_id=c.process_id, pass_threshold=c.pass_threshold)
-            n.items = [ChecklistItem(**{k: getattr(i, k) for k in ("sequence", "question", "criteria", "question_type", "choices", "is_mandatory", "evidence_required", "weight", "max_score", "is_scored")}) for i in c.items]
+            n.items = [ChecklistItem(**{k: getattr(i, k) for k in _ITEM_COLS}) for i in c.items]
             s.add(n)
             c.active = False
             s.flush()
@@ -2435,7 +2440,7 @@ def chk_extra(s, user, c):
 
 # ---- Employees profile / portal projects / news -----------------------------------
 def emp_extra(s, user, e):
-    c = lambda M, *w: s.scalar(select(func.count(M.id)).where(*w))
+    c = lambda M, *w: s.scalar(select(func.count(M.id)).where(*w))  # noqa: E731
     k1, k2, k3, k4 = st.columns(4)
     with k1:
         card(L("مهام مفتوحة", "Open tasks"), c(Task, Task.assignee_id == e.id, Task.status.notin_(["done", "cancelled"]), Task.archived.is_(False)))
@@ -2537,6 +2542,13 @@ CFGS = {
 # =============================================================================
 # 12. DASHBOARD, REPORTS, KNOWLEDGE CENTER, NOTIFICATIONS, AUDIT, ADMIN
 # =============================================================================
+def show_bar(df, group_col, value_col, agg="mean"):
+    if df.empty:
+        st.caption(L("لا بيانات", "No data"))
+    else:
+        st.bar_chart(getattr(df.groupby(group_col)[value_col], agg)())
+
+
 def dashboard_page(user):
     st.subheader(L("لوحة المؤشرات التنفيذية", "Executive Dashboard"))
     with S() as s:
@@ -2585,22 +2597,21 @@ def dashboard_page(user):
             st.markdown(f"**{L('أداء الأقسام (متوسط الدرجة)', 'Department performance (avg score)')}**")
             dd = pd.DataFrame([{"dept": depts.get(r.department_id, "?"), "score": r.compliance_score} for r in revs
                                if r.compliance_score is not None])
-            st.bar_chart(dd.groupby("dept")["score"].mean()) if not dd.empty else st.caption(L("لا بيانات", "No data"))
+            show_bar(dd, "dept", "score")
         with b:
             st.markdown(f"**{L('الامتثال حسب العملية', 'Process-level compliance')}**")
             pn = {p.id: p.name for p in procs}
             pp = pd.DataFrame([{"process": pn.get(r.process_id, "—"), "score": r.compliance_score} for r in revs
                                if r.compliance_score is not None and r.process_id])
-            st.bar_chart(pp.groupby("process")["score"].mean()) if not pp.empty else st.caption(L("لا بيانات", "No data"))
+            show_bar(pp, "process", "score")
         a, b = st.columns(2)
         with a:
             st.markdown(f"**{L('الاتجاه الشهري', 'Monthly trend')}**")
             mt = pd.DataFrame([{"month": (r.review_date or r.created_at.date()).strftime("%Y-%m"), "reviews": 1, "score": r.compliance_score} for r in revs])
-            if not mt.empty:
-                g = mt.groupby("month").agg(reviews=("reviews", "sum"), avg_score=("score", "mean"))
-                st.line_chart(g)
-            else:
+            if mt.empty:
                 st.caption(L("لا بيانات", "No data"))
+            else:
+                st.line_chart(mt.groupby("month").agg(reviews=("reviews", "sum"), avg_score=("score", "mean")))
         with b:
             st.markdown(f"**{L('تحقيق مؤشرات الأداء', 'KPI achievement')}**")
             rows = []
@@ -2608,12 +2619,15 @@ def dashboard_page(user):
                 last = s.scalar(select(KPIValue).where(KPIValue.kpi_id == k.id).order_by(KPIValue.period_start.desc()).limit(1))
                 if last:
                     rows.append({"KPI": k.name, L("الإنجاز %", "Achievement %"): round((last.actual / k.target if k.higher_is_better else (k.target / last.actual if last.actual else 0)) * 100, 1)})
-            st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True) if rows else st.caption(L("لا توجد قيم مؤشرات", "No KPI values"))
+            if rows:
+                st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+            else:
+                st.caption(L("لا توجد قيم مؤشرات", "No KPI values"))
         a, b = st.columns(2)
         with a:
             st.markdown(f"**{L('عبء عمل المراجعين', 'Reviewer workload')}**")
             wl = pd.DataFrame([{"reviewer": emp.get(r.reviewer_id, "—"), "open": 1} for r in revs if r.status in pending_st])
-            st.bar_chart(wl.groupby("reviewer")["open"].sum()) if not wl.empty else st.caption(L("لا بيانات", "No data"))
+            show_bar(wl, "reviewer", "open", "sum")
         with b:
             st.markdown(f"**{L('المواعيد القادمة (14 يوماً)', 'Upcoming deadlines (14 days)')}**")
             horizon = today + timedelta(days=14)
@@ -2621,7 +2635,10 @@ def dashboard_page(user):
             up += [{L("النوع", "Type"): "Review", L("العنصر", "Item"): r.title, L("التاريخ", "Date"): r.due_date} for r in revs if r.due_date and today <= r.due_date <= horizon and r.status in pending_st]
             up += [{L("النوع", "Type"): "CAPA", L("العنصر", "Item"): c.title, L("التاريخ", "Date"): c.target_date} for c in capas if c.target_date and today <= c.target_date <= horizon and c.status not in ("closed", "rejected")]
             up += [{L("النوع", "Type"): "Document", L("العنصر", "Item"): d.title, L("التاريخ", "Date"): d.review_date} for d in docs if d.review_date and today <= d.review_date <= horizon]
-            st.dataframe(pd.DataFrame(up).sort_values(L("التاريخ", "Date")), hide_index=True, use_container_width=True) if up else st.caption(L("لا مواعيد قريبة", "No upcoming deadlines"))
+            if up:
+                st.dataframe(pd.DataFrame(up).sort_values(L("التاريخ", "Date")), hide_index=True, use_container_width=True)
+            else:
+                st.caption(L("لا مواعيد قريبة", "No upcoming deadlines"))
         if can(user, "audit", "read"):
             st.markdown(f"**{L('آخر الأنشطة', 'Recent activities')}**")
             logs = s.scalars(select(AuditLog).order_by(AuditLog.id.desc()).limit(10))
@@ -2640,7 +2657,7 @@ def reports_page(user):
     rep = c1.selectbox(L("التقرير", "Report"), list(names), format_func=lambda k: names[k])
     rng = c2.date_input(L("الفترة", "Date range"), (date.today() - timedelta(days=365), date.today()), key="rp_rng")
     start, end = (rng[0], rng[1]) if isinstance(rng, (list, tuple)) and len(rng) == 2 else (date.min, date.max)
-    inr = lambda d_: d_ is not None and start <= (d_.date() if isinstance(d_, datetime) else d_) <= end
+    inr = lambda d_: d_ is not None and start <= (d_.date() if isinstance(d_, datetime) else d_) <= end  # noqa: E731
     today = date.today()
     with S() as s:
         dn, en, pn = _lookup(s, {}, Department, "name"), _lookup(s, {}, Employee, "full_name"), _lookup(s, {}, Process, "name")
@@ -2702,12 +2719,10 @@ def reports_page(user):
     num = [c for c in df.columns if df[c].dtype.kind in "fi" and c not in ("age_days",)]
     if rep in ("dept", "reviewer", "quarter") and num:
         st.bar_chart(df.set_index(df.columns[0])[num])
-    audit_export = lambda: None  # noqa: E731
     if can(user, "reports", "export"):
         df_download(df, f"report_{rep}", user, "reports")
     else:
         st.caption(L("التصدير غير متاح لدورك", "Export is not available for your role"))
-    del audit_export
 
 
 def knowledge_page(user):
@@ -2718,8 +2733,9 @@ def knowledge_page(user):
         cats = sorted({d.category for d in docs})
         c1, c2 = st.columns([2, 1])
         q = c1.text_input(L("بحث", "Search"), key="kc_q").strip().lower()
-        cat = c2.selectbox(L("النوع", "Category"), [L("الكل", "All")] + cats, key="kc_cat")
-        shown = [d for d in docs if (cat == L("الكل", "All") or d.category == cat) and (not q or q in f"{d.title} {d.description} {d.doc_code}".lower())]
+        all_lbl = L("الكل", "All")
+        cat = c2.selectbox(L("النوع", "Category"), [all_lbl] + cats, key="kc_cat")
+        shown = [d for d in docs if (cat == all_lbl or d.category == cat) and (not q or q in f"{d.title} {d.description} {d.doc_code}".lower())]
         if not shown:
             st.info(L("لا توجد مستندات معتمدة مطابقة.", "No matching approved documents."))
         for d in shown:
@@ -2747,10 +2763,11 @@ def portal_page(user):
                 st.info(L("لا توجد مشاريع.", "No projects yet."))
             else:
                 cats = sorted({p.category or "عام" for p in projs})
+                all_lbl = L("الكل", "All")
                 c1, c2 = st.columns([2, 1])
                 q = c1.text_input(L("بحث", "Search"), key="pj_q").strip().lower()
-                cat = c2.selectbox(L("التصنيف", "Category"), [L("الكل", "All")] + cats, key="pj_cat")
-                opts = [p for p in projs if (cat == L("الكل", "All") or p.category == cat) and (not q or q in f"{p.name} {p.title} {p.description}".lower())]
+                cat = c2.selectbox(L("التصنيف", "Category"), [all_lbl] + cats, key="pj_cat")
+                opts = [p for p in projs if (cat == all_lbl or p.category == cat) and (not q or q in f"{p.name} {p.title} {p.description}".lower())]
                 if not opts:
                     st.info(L("لا نتائج", "No results"))
                 else:
@@ -2764,7 +2781,8 @@ def portal_page(user):
         if not can(user, "portal", "create"):
             st.info(L("للإدارة فقط", "Managers only"))
         else:
-            which = st.radio("", ["portal_projects", "news"], format_func=lambda k: L(*CFGS[k].title), horizontal=True, key="pt_which")
+            which = st.radio("manage", ["portal_projects", "news"], format_func=lambda k: L(*CFGS[k].title), horizontal=True,
+                             key="pt_which", label_visibility="collapsed")
             crud_page(CFGS[which], user)
 
 
@@ -2786,7 +2804,7 @@ def notifications_page(user):
             a, b, c = st.columns([6, 1, 1])
             a.markdown(f"{'🔵 ' if not n.is_read else ''}**{esc(n.title)}**  \n<small>{n.created_at:%Y-%m-%d %H:%M} · {esc(n.category)} · {esc(n.body)}</small>", unsafe_allow_html=True)
             if n.entity_type in CFGS and n.entity_id:
-                b.button(L("فتح", "Open"), key=f"nt_o_{n.id}", on_click=goto, args=(n.entity_type if n.entity_type != "portal_projects" else "portal", n.entity_type, n.entity_id))
+                b.button(L("فتح", "Open"), key=f"nt_o_{n.id}", on_click=goto, args=(n.entity_type, n.entity_type, n.entity_id))
             if not n.is_read and c.button("✓", key=f"nt_r_{n.id}"):
                 n.is_read = True
                 st.rerun()
@@ -2900,7 +2918,7 @@ def users_page(user):
         npw = st.text_input(L("كلمة مرور جديدة (اختياري)", "New password (optional)"), type="password", key=f"us_pw_{sel.id}")
         if st.button(L("حفظ المستخدم", "Save user"), type="primary", key=f"us_save_{sel.id}"):
             errs = pw_problems(npw) if npw else []
-            if sel.id == user.id and (not active or role != "system_admin" and sel.role == "system_admin"):
+            if sel.id == user.id and (not active or (role != "system_admin" and sel.role == "system_admin")):
                 errs.append(L("لا يمكنك إلغاء تفعيل أو خفض صلاحية حسابك", "You cannot deactivate or demote your own account"))
             if errs:
                 for e in errs:
@@ -3003,7 +3021,7 @@ def seed_demo(user):
 def remove_demo(user):
     try:
         with S() as s:
-            demo = lambda M: [o.id for o in s.scalars(select(M).where(M.is_demo.is_(True)))]
+            demo = lambda M: [o.id for o in s.scalars(select(M).where(M.is_demo.is_(True)))]  # noqa: E731
             rv = demo(Review)
             if rv:
                 s.query(ReviewAnswer).filter(ReviewAnswer.review_id.in_(rv)).delete(synchronize_session=False)
@@ -3084,11 +3102,15 @@ def settings_page(user):
         st.caption(L("بيانات تجريبية وهمية موسومة [DEMO] ويمكن حذفها.", "Fictional records labelled [DEMO]; removable."))
         c1, c2 = st.columns(2)
         if c1.button(L("إضافة بيانات العرض", "Add demo data"), disabled=not edit or get_setting("demo_seeded") == "1"):
-            st.success(L("تمت الإضافة", "Added")) if seed_demo(user) else None
+            if seed_demo(user):
+                st.success(L("تمت الإضافة", "Added"))
             st.rerun()
         if c2.button(L("حذف بيانات العرض", "Remove demo data"), disabled=not edit):
             ok, msg = remove_demo(user)
-            st.success(L("تم الحذف", "Removed")) if ok else st.error(msg)
+            if ok:
+                st.success(L("تم الحذف", "Removed"))
+            else:
+                st.error(msg)
     with t4:
         st.caption(L("نسخة احتياطية كاملة من الجداول (بدون كلمات المرور).", "Full table export (password hashes excluded)."))
         if can(user, "settings", "export"):
@@ -3096,7 +3118,7 @@ def settings_page(user):
                 buf = io.BytesIO()
                 with pd.ExcelWriter(buf, engine="openpyxl") as xw:
                     for tbl in Base.metadata.sorted_tables:
-                        if tbl.name in ("attachments",):
+                        if tbl.name == "attachments":
                             cols = [c for c in tbl.c if c.name != "content"]
                         elif tbl.name == "users":
                             cols = [c for c in tbl.c if c.name not in ("password_hash", "totp_secret")]
@@ -3118,7 +3140,8 @@ def settings_page(user):
 
 def org_page(user):
     st.subheader(L("الأقسام والموظفون والعمليات", "Departments, Employees & Processes"))
-    which = st.radio("", ["departments", "employees", "processes"], format_func=lambda k: L(*CFGS[k].title), horizontal=True, key="org_which")
+    which = st.radio("org", ["departments", "employees", "processes"], format_func=lambda k: L(*CFGS[k].title), horizontal=True,
+                     key="org_which", label_visibility="collapsed")
     crud_page(CFGS[which], user)
 
 
@@ -3160,8 +3183,6 @@ def render_sidebar(user):
         for key, grp, icon, ar, en, module, _ in PAGES:
             if not can(user, module, "read"):
                 continue
-            if key in ("users", "settings") and not can(user, key, "read"):
-                continue
             if grp != last:
                 st.markdown(f'<div class="grp">{esc(L(*GROUPS[grp]))}</div>', unsafe_allow_html=True)
                 last = grp
@@ -3174,7 +3195,9 @@ def render_sidebar(user):
                       type="primary" if st.session_state["page"] == key else "secondary")
         st.divider()
         c1, c2 = st.columns(2)
-        st.session_state["lang"] = "ar" if c1.selectbox("🌐", ["ar", "en"], index=0 if lang() == "ar" else 1, format_func=lambda x: "العربية" if x == "ar" else "English", label_visibility="collapsed") == "ar" else "en"
+        chosen = c1.selectbox("lang", ["ar", "en"], index=0 if lang() == "ar" else 1,
+                              format_func=lambda x: "العربية" if x == "ar" else "English", label_visibility="collapsed", key="lang_pick")
+        st.session_state["lang"] = chosen
         dark = c2.toggle("🌙", value=st.session_state.get("theme") == "dark")
         st.session_state["theme"] = "dark" if dark else "light"
         if st.button(L("تسجيل الخروج", "Sign out"), key="logout"):
@@ -3197,10 +3220,9 @@ def global_search(user, q):
 
 
 def render_topbar(user):
-    pg = next((p for p in PAGES if p[0] == st.session_state["page"]), PAGES[0])
     st.markdown(f'<div class="topbar"><b>{esc(L("نظام جودة ليناركو", "Linrco QA ERP"))}</b><span>{esc(user.name)} · {esc(lab(user.role))}</span></div>', unsafe_allow_html=True)
     c1, c2 = st.columns([4, 1])
-    q = c1.text_input("", placeholder=L("🔎 بحث شامل (مراجعات، مستندات، CAPA، مهام)...", "🔎 Global search (reviews, documents, CAPA, tasks)..."),
+    q = c1.text_input("search", placeholder=L("🔎 بحث شامل (مراجعات، مستندات، CAPA، مهام)...", "🔎 Global search (reviews, documents, CAPA, tasks)..."),
                       key="gsearch", label_visibility="collapsed").strip()
     with c2.popover(L("⚡ إجراءات سريعة", "⚡ Quick actions")):
         for key, ar, en in (("reviews", "مراجعة جديدة", "New review"), ("documents", "مستند جديد", "New document"),
@@ -3212,16 +3234,18 @@ def render_topbar(user):
         if not res:
             st.caption(L("لا نتائج", "No results"))
         for key, rid, label in res:
-            st.button(f"{CFGS[key].title[0] if lang() == 'ar' else CFGS[key].title[1]} → {label}", key=f"gs_{key}_{rid}", on_click=goto, args=(key, key, rid))
-    st.session_state["crumb_page"] = L(pg[3], pg[4])
+            st.button(f"{L(*CFGS[key].title)} → {label}", key=f"gs_{key}_{rid}", on_click=goto, args=(key, key, rid))
 
 
 def render_breadcrumbs(page_tuple):
-    grp = L(*GROUPS[page_tuple[1]])
-    rec = st.session_state.get("crumb_record")
-    open_ = any(st.session_state.get(f"{k}_view") not in (None, "") for k in CFGS if CFGS[k].module == page_tuple[5])
-    tail = f" / {esc(str(rec))}" if rec and open_ else ""
-    st.markdown(f'<div class="crumbs">{esc(L("الرئيسية", "Home"))} / {esc(grp)} / {esc(L(page_tuple[3], page_tuple[4]))}{tail}</div>', unsafe_allow_html=True)
+    parts = [L("الرئيسية", "Home")]
+    if page_tuple[0] != "dashboard":
+        parts += [L(*GROUPS[page_tuple[1]]), L(page_tuple[3], page_tuple[4])]
+        rec = st.session_state.get("crumb_record")
+        open_ = any(st.session_state.get(f"{k}_view") not in (None, "") for k in CFGS if CFGS[k].module == page_tuple[5])
+        if rec and open_:
+            parts.append(str(rec))
+    st.markdown(f'<div class="crumbs">{" / ".join(esc(p) for p in parts)}</div>', unsafe_allow_html=True)
 
 
 def main():
@@ -3250,7 +3274,8 @@ def main():
             pass
         st.session_state["last_scan"] = datetime.utcnow()
     render_sidebar(user)
-    inject_css()
+    if st.session_state.get("_css_sig") != (lang(), st.session_state.get("theme")):
+        inject_css()  # language or theme changed in the sidebar during this run
     render_topbar(user)
     page = next((p for p in PAGES if p[0] == st.session_state["page"]), PAGES[0])
     if not can(user, page[5], "read"):
@@ -3263,7 +3288,8 @@ def main():
         st.error(str(exc))
     except Exception as exc:  # noqa: BLE001
         st.error(L("حدث خطأ غير متوقع", "An unexpected error occurred"))
-        st.exception(exc) if os.environ.get("QA_ERP_DEBUG") else None
+        if os.environ.get("QA_ERP_DEBUG"):
+            st.exception(exc)
 
 
 # =============================================================================
