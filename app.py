@@ -66,10 +66,29 @@ header[data-testid="stHeader"] { background: transparent; }
 }
 h1, h2, h3 { color: var(--ink); font-weight: 700; }
 
-/* الشريط الجانبي */
+/* الشريط الجانبي — فرض ظهور المحتوى */
 [data-testid="stSidebar"] {
-    background: var(--surface);
-    border-left: 1px solid var(--line);
+    background: #FFFFFF !important;
+    border-left: 1px solid #E3E6EB !important;
+    min-width: 280px !important;
+}
+[data-testid="stSidebar"] [data-testid="stSidebarContent"],
+[data-testid="stSidebar"] [data-testid="stVerticalBlock"],
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+[data-testid="stSidebar"] [data-testid="stImage"],
+[data-testid="stSidebar"] .stButton,
+[data-testid="stSidebar"] details {
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3,
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] span,
+[data-testid="stSidebar"] div {
+    color: #1D2433;
 }
 [data-testid="stSidebar"] .stButton > button { width: 100%; }
 .sb-logo {
@@ -434,55 +453,54 @@ def render_2fa():
 
 
 def render_sidebar(user_info, is_admin):
+    """عرض الشريط الجانبي ومحتوياته بشكل مباشر وواضح."""
     with st.sidebar:
-        st.markdown("### القائمة الرئيسية")
-        if st.button("الرئيسية", key="sidebar_home", use_container_width=True):
-            st.session_state.show_admin_settings = False
-            st.rerun()
+        st.markdown("## بوابة الجودة")
+        st.caption("ليناركو | Quality Assurance")
+        st.divider()
 
-        st.markdown(
-            f'<div class="sb-logo"><img src="{img_src(store["company_logo"])}" alt="ليناركو"></div>',
-            unsafe_allow_html=True,
-        )
+        # شعارات الشركة والجودة
+        for logo, alt in ((store["company_logo"], "شعار ليناركو"), (store["qa_logo"], "شعار قسم الجودة")):
+            try:
+                if isinstance(logo, (bytes, bytearray)):
+                    st.image(logo, use_container_width=True, caption=alt)
+                elif logo:
+                    st.markdown(
+                        f'<div class="sb-logo"><img src="{img_src(logo)}" alt="{esc(alt)}"></div>',
+                        unsafe_allow_html=True,
+                    )
+            except Exception:
+                st.caption(alt)
+
         if is_admin:
             with st.expander("تغيير شعار الشركة"):
                 up = st.file_uploader("شعار ليناركو الجديد", type=["png", "jpg", "jpeg"], key="sb_c_logo")
-                if up is not None and st.button("حفظ شعار الشركة", key="save_c_logo"):
+                if up is not None and st.button("حفظ شعار الشركة", key="save_c_logo", use_container_width=True):
                     store["company_logo"] = enhance_image(up)
                     st.rerun()
 
-        st.markdown(
-            f'<div class="sb-logo"><img src="{img_src(store["qa_logo"])}" alt="الجودة"></div>',
-            unsafe_allow_html=True,
-        )
-        if is_admin:
             with st.expander("تغيير شعار قسم الجودة"):
                 up = st.file_uploader("شعار الجودة الجديد", type=["png", "jpg", "jpeg"], key="sb_qa_logo")
-                if up is not None and st.button("حفظ شعار الجودة", key="save_qa_logo"):
+                if up is not None and st.button("حفظ شعار الجودة", key="save_qa_logo", use_container_width=True):
                     store["qa_logo"] = enhance_image(up)
                     st.rerun()
 
-        initial = esc(user_info["name"][:1])
-        st.markdown(
-            f"""
-            <div class="user-chip">
-                <div class="avatar">{initial}</div>
-                <div>
-                    <div class="name">{esc(user_info['name'])}</div>
-                    <div class="role">{ROLE_LABELS[user_info['role']]}</div>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        st.divider()
+        st.markdown(f"### أهلاً بك، {esc(user_info['name'])}")
+        st.write(f"**الصلاحية:** {ROLE_LABELS[user_info['role']]}")
+        st.divider()
+
+        if st.button("🏠 الرئيسية", key="sidebar_home", use_container_width=True):
+            st.session_state.show_admin_settings = False
+            st.rerun()
 
         if is_admin:
-            label = "العودة للرئيسية" if st.session_state.show_admin_settings else "إعدادات النظام والأمان"
-            if st.button(label, key="toggle_admin"):
+            label = "↩ العودة للرئيسية" if st.session_state.show_admin_settings else "⚙️ إعدادات النظام والأمان"
+            if st.button(label, key="toggle_admin", use_container_width=True):
                 st.session_state.show_admin_settings = not st.session_state.show_admin_settings
                 st.rerun()
 
-        if st.button("تسجيل الخروج", key="logout_btn"):
+        if st.button("🚪 تسجيل الخروج", key="logout_btn", use_container_width=True):
             logout()
 
 
