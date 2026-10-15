@@ -11,21 +11,350 @@ import streamlit as st
 from PIL import Image, ImageEnhance
 
 # ──────────────────────────────────────────────────────────────
-# إعدادات الصفحة
+# إعدادات الصفحة / Page config
 # ──────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="بوابة الجودة - ليناركو",
+    page_title="بوابة الجودة | Quality Portal",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
 # ──────────────────────────────────────────────────────────────
-# التنسيق (CSS)
+# الترجمة / Translations
 # ──────────────────────────────────────────────────────────────
-CSS = """
+TR = {
+    "ar": {
+        "language": "اللغة",
+        "company_name": "ليناركو",
+        "qa_name": "قسم الجودة",
+        # الدخول
+        "login_title": "نظام الداشبوردات - قسم الجودة",
+        "login_sub": "سجّل الدخول باسم المستخدم أو البريد الإلكتروني",
+        "username_label": "اسم المستخدم / البريد الإلكتروني",
+        "password": "كلمة المرور",
+        "sign_in": "تسجيل الدخول",
+        "login_error": "اسم المستخدم أو كلمة المرور غير صحيحة.",
+        # التحقق الثنائي
+        "tfa_title": "التحقق الثنائي",
+        "tfa_sub": "أدخل الرمز المكوّن من 6 أرقام من تطبيق Google Authenticator",
+        "tfa_code": "رمز التحقق",
+        "device_name": "اسم الجهاز أو المتصفح",
+        "device_default": "جهاز موثوق جديد",
+        "trust_device": "وثّق هذا الجهاز (لا تطلب الرمز مرة أخرى)",
+        "verify": "تحقق ودخول",
+        "tfa_error": "الرمز غير صحيح أو انتهت صلاحيته. انتظر ظهور الرمز الجديد وحاول مرة أخرى.",
+        "back_login": "رجوع لتسجيل الدخول",
+        # اللوحة الجانبية
+        "welcome": "أهلاً بك، {name}",
+        "menu": "القائمة",
+        "home": "🏠 الرئيسية",
+        "admin_settings": "⚙️ إعدادات النظام والأمان",
+        "change_logos": "🖼️ تغيير الشعارات",
+        "new_company_logo": "شعار ليناركو الجديد",
+        "save_company_logo": "حفظ شعار الشركة",
+        "new_qa_logo": "شعار قسم الجودة الجديد",
+        "save_qa_logo": "حفظ شعار الجودة",
+        "logout": "🚪 تسجيل الخروج",
+        "role_admin": "مدير النظام",
+        "role_manager": "مدير القسم",
+        "role_user": "موظف",
+        # إعدادات الأدمن
+        "settings_title": "إعدادات النظام والأمان",
+        "settings_caption": "هذه الصفحة للأدمن فقط: إدارة المصادقة الثنائية والأجهزة الموثوقة والمستخدمين.",
+        "tab_security": "الأمان والتحقق الثنائي",
+        "tab_users": "المستخدمون والصلاحيات",
+        "link_phone_title": "ربط موبايل الشركة بتطبيق Google Authenticator",
+        "link_steps": """
+1. حمّل تطبيق **Google Authenticator** على هاتفك.
+2. اضغط **(+)** ثم اختر **Scan a QR code**.
+3. امسح الكود التالي مرة واحدة فقط، وسيبقى صالحاً دائماً.
+""",
+        "devices_title": "الأجهزة الموثوقة",
+        "user_word": "المستخدم",
+        "remove_device": "إزالة الجهاز",
+        "no_devices": "لا توجد أجهزة موثوقة مسجلة حالياً.",
+        "current_users": "المستخدمون الحاليون",
+        "col_user": "المستخدم / الإيميل",
+        "col_name": "الاسم",
+        "col_role": "الصلاحية",
+        "add_user": "إضافة مستخدم جديد",
+        "f_email": "البريد الإلكتروني / اسم المستخدم",
+        "f_name": "الاسم",
+        "f_pass": "كلمة المرور",
+        "f_role": "الصلاحية",
+        "add_user_btn": "إضافة المستخدم",
+        "user_added": "تمت إضافة {name}.",
+        "fill_all": "يرجى ملء جميع الحقول.",
+        "delete_user": "حذف مستخدم",
+        "choose_user": "اختر المستخدم",
+        "delete_selected": "حذف المستخدم المختار",
+        # لوحة الإدارة
+        "manage_panel": "لوحة إدارة المشاريع والملفات والأخبار",
+        "tab_edit": "تعديل مشروع وإرفاق ملفات",
+        "tab_add_project": "إضافة مشروع",
+        "tab_add_news": "إضافة خبر",
+        "project": "المشروع",
+        "f_title": "العنوان",
+        "f_title_en": "العنوان بالإنجليزية (اختياري)",
+        "f_desc": "الوصف",
+        "f_desc_en": "الوصف بالإنجليزية (اختياري)",
+        "f_url": "الرابط (URL)",
+        "f_embed": "رابط التضمين Embed URL (اختياري)",
+        "embed_help": "لو تركته فارغاً سيحاول النظام تحويل الرابط العادي تلقائياً.",
+        "f_category": "التصنيف",
+        "attach_doc": "إرفاق مستند",
+        "save_changes": "حفظ التعديلات",
+        "add_name": "اسم المشروع (يظهر في القائمة)",
+        "add_name_en": "اسم المشروع بالإنجليزية (اختياري)",
+        "add_main_title": "العنوان الرئيسي",
+        "add_dash_url": "رابط الداشبورد",
+        "add_project_btn": "إضافة المشروع",
+        "need_name_url": "أدخل اسم المشروع والرابط على الأقل.",
+        "news_title": "عنوان الخبر",
+        "news_title_en": "عنوان الخبر بالإنجليزية (اختياري)",
+        "news_text": "نص الخبر",
+        "news_text_en": "نص الخبر بالإنجليزية (اختياري)",
+        "news_image": "صورة الخبر",
+        "publish_news": "نشر الخبر",
+        "need_news": "أدخل عنوان الخبر ونصه.",
+        # الأخبار والمشاريع
+        "latest_news": "آخر الأخبار والتحديثات",
+        "manage_news": "إدارة الخبر",
+        "new_image": "صورة جديدة",
+        "save_image": "حفظ الصورة",
+        "delete_news": "حذف الخبر",
+        "projects_title": "المشاريع والتقارير",
+        "no_projects": "لا توجد مشاريع حالياً.",
+        "search": "بحث",
+        "search_ph": "اكتب جزءاً من اسم المشروع أو وصفه...",
+        "all": "الكل",
+        "results_count": "عدد النتائج: {n} من {total}",
+        "no_match": "لا توجد مشاريع مطابقة. غيّر كلمة البحث أو التصنيف.",
+        "choose_project": "اختر المشروع",
+        "open_new_tab": "فتح في تبويب جديد",
+        "attached_files": "الملفات المرفقة ({n})",
+        "download": "تحميل {name}",
+        "iframe_hint": "لو التقرير لم يظهر هنا، افتحه من زر «فتح في تبويب جديد».",
+        "trouble": "التقرير لا يظهر؟ خطوات الحل",
+        "trouble_md": """
+1. في Looker Studio: **File ← Embed report ← Enable embedding**، ثم انسخ **Embed URL** والصقه في خانة «رابط التضمين» في لوحة الإدارة.
+2. الروابط القصيرة `/s/...` لا تعمل داخل iframe، ويجب أن يكون الرابط على شكل `/embed/reporting/...`.
+3. تأكد من مشاركة التقرير (Share) مع المستخدمين أو المؤسسة، أو «Anyone with the link».
+4. إذا كان التقرير خاصاً بحسابات Google، يجب أن يكون المستخدم مسجّلاً الدخول بحساب Google في نفس المتصفح، وأن لا يمنع المتصفح الكوكيز الخارجية.
+
+الرابط المستخدم حالياً للعرض:
+""",
+        "invalid_url": "رابط المشروع غير صالح. يجب أن يبدأ بـ http:// أو https://",
+        # الواجهة الرئيسية
+        "hero_title": "بوابة تقارير ومشاريع الجودة",
+        "hero_sub": "مرحباً {name}، هنا تجد تقارير قسم الجودة في ليناركو ومؤشرات الأداء ومستندات المشاريع.",
+        "stat_projects": "مشاريع",
+        "stat_news": "أخبار",
+        "stat_files": "ملفات مرفقة",
+        "general": "عام",
+    },
+    "en": {
+        "language": "Language",
+        "company_name": "Linrco",
+        "qa_name": "Quality Department",
+        # Login
+        "login_title": "Dashboards System – Quality Department",
+        "login_sub": "Sign in with your username or email",
+        "username_label": "Username / Email",
+        "password": "Password",
+        "sign_in": "Sign in",
+        "login_error": "Incorrect username or password.",
+        # 2FA
+        "tfa_title": "Two-Factor Authentication",
+        "tfa_sub": "Enter the 6-digit code from the Google Authenticator app",
+        "tfa_code": "Verification code",
+        "device_name": "Device or browser name",
+        "device_default": "New trusted device",
+        "trust_device": "Trust this device (don't ask for the code again)",
+        "verify": "Verify and sign in",
+        "tfa_error": "The code is incorrect or has expired. Wait for the new code and try again.",
+        "back_login": "Back to sign in",
+        # Side panel
+        "welcome": "Welcome, {name}",
+        "menu": "Menu",
+        "home": "🏠 Home",
+        "admin_settings": "⚙️ System & Security Settings",
+        "change_logos": "🖼️ Change logos",
+        "new_company_logo": "New Linrco logo",
+        "save_company_logo": "Save company logo",
+        "new_qa_logo": "New Quality Dept. logo",
+        "save_qa_logo": "Save quality logo",
+        "logout": "🚪 Sign out",
+        "role_admin": "System Admin",
+        "role_manager": "Department Manager",
+        "role_user": "Employee",
+        # Admin settings
+        "settings_title": "System & Security Settings",
+        "settings_caption": "Admin only: manage two-factor authentication, trusted devices and users.",
+        "tab_security": "Security & Two-Factor",
+        "tab_users": "Users & Permissions",
+        "link_phone_title": "Link the company phone to Google Authenticator",
+        "link_steps": """
+1. Install the **Google Authenticator** app on your phone.
+2. Tap **(+)** then choose **Scan a QR code**.
+3. Scan the code below once only; it stays valid permanently.
+""",
+        "devices_title": "Trusted devices",
+        "user_word": "User",
+        "remove_device": "Remove device",
+        "no_devices": "No trusted devices are registered yet.",
+        "current_users": "Current users",
+        "col_user": "User / Email",
+        "col_name": "Name",
+        "col_role": "Role",
+        "add_user": "Add a new user",
+        "f_email": "Email / Username",
+        "f_name": "Name",
+        "f_pass": "Password",
+        "f_role": "Role",
+        "add_user_btn": "Add user",
+        "user_added": "{name} was added.",
+        "fill_all": "Please fill in all fields.",
+        "delete_user": "Delete a user",
+        "choose_user": "Select a user",
+        "delete_selected": "Delete selected user",
+        # Management panel
+        "manage_panel": "Projects, files and news management",
+        "tab_edit": "Edit project & attach files",
+        "tab_add_project": "Add project",
+        "tab_add_news": "Add news",
+        "project": "Project",
+        "f_title": "Title",
+        "f_title_en": "English title (optional)",
+        "f_desc": "Description",
+        "f_desc_en": "English description (optional)",
+        "f_url": "Link (URL)",
+        "f_embed": "Embed URL (optional)",
+        "embed_help": "If left empty, the system will try to convert the regular link automatically.",
+        "f_category": "Category",
+        "attach_doc": "Attach a document",
+        "save_changes": "Save changes",
+        "add_name": "Project name (shown in the list)",
+        "add_name_en": "English project name (optional)",
+        "add_main_title": "Main title",
+        "add_dash_url": "Dashboard link",
+        "add_project_btn": "Add project",
+        "need_name_url": "Enter at least the project name and link.",
+        "news_title": "News title",
+        "news_title_en": "English news title (optional)",
+        "news_text": "News text",
+        "news_text_en": "English news text (optional)",
+        "news_image": "News image",
+        "publish_news": "Publish news",
+        "need_news": "Enter the news title and text.",
+        # News & projects
+        "latest_news": "Latest news & updates",
+        "manage_news": "Manage news item",
+        "new_image": "New image",
+        "save_image": "Save image",
+        "delete_news": "Delete news item",
+        "projects_title": "Projects & Reports",
+        "no_projects": "There are no projects yet.",
+        "search": "Search",
+        "search_ph": "Type part of a project name or description...",
+        "all": "All",
+        "results_count": "Results: {n} of {total}",
+        "no_match": "No matching projects. Change the search text or category.",
+        "choose_project": "Select a project",
+        "open_new_tab": "Open in a new tab",
+        "attached_files": "Attached files ({n})",
+        "download": "Download {name}",
+        "iframe_hint": "If the report doesn't appear here, open it with the \"Open in a new tab\" button.",
+        "trouble": "Report not showing? Troubleshooting steps",
+        "trouble_md": """
+1. In Looker Studio: **File → Embed report → Enable embedding**, then copy the **Embed URL** and paste it into the "Embed URL" field in the management panel.
+2. Short links `/s/...` don't work inside an iframe; the link must look like `/embed/reporting/...`.
+3. Make sure the report is shared (Share) with users or the organization, or "Anyone with the link".
+4. If the report is restricted to Google accounts, the user must be signed in to Google in the same browser, and the browser must not block third-party cookies.
+
+The link currently used for display:
+""",
+        "invalid_url": "The project link is invalid. It must start with http:// or https://",
+        # Main page
+        "hero_title": "Quality Reports & Projects Portal",
+        "hero_sub": "Hello {name}, here you will find the Quality department's reports, performance indicators and project documents at Linrco.",
+        "stat_projects": "Projects",
+        "stat_news": "News",
+        "stat_files": "Attached files",
+        "general": "General",
+    },
+}
+
+# اللغة الحالية (تُحفظ في الجلسة وفي رابط الصفحة ?lang=)
+if "lang" not in st.session_state:
+    _q = st.query_params.get("lang", "ar")
+    st.session_state.lang = _q if _q in ("ar", "en") else "ar"
+
+
+def cur_lang():
+    return st.session_state.get("lang", "ar")
+
+
+def t(key, **kw):
+    s = TR[cur_lang()].get(key) or TR["ar"].get(key, key)
+    return s.format(**kw) if kw else s
+
+
+def loc(item, field):
+    """يرجع النص المناسب للغة الحالية (field_en للإنجليزية لو موجود، وإلا النص الأصلي)."""
+    if cur_lang() == "en":
+        v = item.get(f"{field}_en")
+        if v:
+            return v
+    return item.get(field, "")
+
+
+def role_label(role):
+    return t(f"role_{role}")
+
+
+# تصنيفات معروفة (القيمة المخزّنة بالعربي، والعرض حسب اللغة)
+CAT_EN = {"مؤشرات الأداء": "KPIs", "المشاريع": "Projects", "عام": "General"}
+CAT_FROM_EN = {v: k for k, v in CAT_EN.items()}
+
+
+def cat_label(cat):
+    cat = cat or "عام"
+    return CAT_EN.get(cat, cat) if cur_lang() == "en" else cat
+
+
+def norm_cat(text):
+    text = (text or "").strip()
+    return CAT_FROM_EN.get(text, text) or "عام"
+
+
+def _set_lang(key):
+    st.session_state.lang = st.session_state[key]
+    st.query_params["lang"] = st.session_state.lang
+
+
+def language_selector(key):
+    st.radio(
+        t("language"),
+        ["ar", "en"],
+        index=0 if cur_lang() == "ar" else 1,
+        format_func=lambda c: "العربية" if c == "ar" else "English",
+        horizontal=True,
+        key=key,
+        on_change=_set_lang,
+        args=(key,),
+        label_visibility="collapsed",
+    )
+
+
+# ──────────────────────────────────────────────────────────────
+# التنسيق (CSS) - يتغير الاتجاه والخط حسب اللغة
+# ──────────────────────────────────────────────────────────────
+CSS_TEMPLATE = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
     --brand: #8A1C2B;
@@ -38,45 +367,30 @@ CSS = """
     --link: #1F6F8B;
 }
 
-/* إخفاء عناصر ستريمليت الافتراضية (مع الإبقاء على زر الشريط الجانبي) */
+/* إخفاء عناصر ستريمليت الافتراضية */
 #MainMenu, footer,
 [data-testid="stDecoration"],
 [data-testid="stToolbarActions"],
 [data-testid="stMainMenu"],
 [data-testid="stAppDeployButton"],
-[data-testid="stStatusWidget"] { display: none !important; }
-header[data-testid="stHeader"] { background: transparent; }
-
-/* لا نستخدم الشريط الجانبي: كل شيء في الهيدر العلوي */
+[data-testid="stStatusWidget"],
 [data-testid="stSidebar"],
 [data-testid="stSidebarCollapsedControl"],
 [data-testid="stExpandSidebarButton"] { display: none !important; }
+header[data-testid="stHeader"] { background: transparent; }
 
-/* (قديم) */
-[data-testid="stToolbar"],
-[data-testid="stExpandSidebarButton"],
-[data-testid="stSidebarCollapsedControl"],
-[data-testid="stSidebarCollapseButton"] {
-    visibility: visible !important;
-    opacity: 1 !important;
-}
-
-/* الاتجاه والخط
-   مهم: الحاوية الخارجية تبقى LTR حتى لا يتداخل الشريط الجانبي مع المحتوى،
-   والاتجاه RTL يُطبَّق على المحتوى نفسه وعلى محتوى الشريط الجانبي. */
-.stApp {
-    background: var(--bg);
-    color: var(--ink);
-}
-[data-testid="stAppViewContainer"] { direction: ltr; }
+/* الاتجاه (RTL للعربي / LTR للإنجليزي) والخط */
+.stApp { background: var(--bg); color: var(--ink); }
 [data-testid="stMain"],
-[data-testid="stSidebarContent"] { direction: rtl; }
+[data-baseweb="popover"],
+[data-baseweb="menu"],
+[data-testid="stPopoverBody"] { direction: __DIR__; }
 
 .stApp,
 .stApp :is(p, h1, h2, h3, h4, h5, h6, label, input, textarea, button, li, a, td, th, caption, summary) {
-    font-family: 'IBM Plex Sans Arabic', Tahoma, sans-serif !important;
+    font-family: __FONT__ !important;
 }
-.stApp :is(p, h1, h2, h3, h4, h5, h6, label, li) { text-align: right; }
+.stApp :is(p, h1, h2, h3, h4, h5, h6, label, li) { text-align: __ALIGN__; }
 [data-testid="stCode"], .stApp code { direction: ltr; text-align: left; }
 
 .block-container {
@@ -85,16 +399,21 @@ header[data-testid="stHeader"] { background: transparent; }
 }
 h1, h2, h3 { color: var(--ink); font-weight: 700; }
 
-/* الشريط الجانبي */
-[data-testid="stSidebar"] {
-    background: var(--surface);
-    border-right: 1px solid var(--line);
+/* اللوحة الجانبية (يمين في العربي، شمال في الإنجليزي) */
+[data-testid="stColumn"]:has(.side-marker) {
+    position: sticky; top: 3.5rem; align-self: flex-start;
 }
-[data-testid="stSidebar"] [data-testid="stSidebarContent"] { padding: 1rem .9rem; }
-[data-testid="stSidebar"] .stButton { margin-bottom: .35rem; }
-[data-testid="stSidebar"] .stButton > button { width: 100%; justify-content: center; }
-[data-testid="stSidebar"] [data-testid="stExpander"] summary { text-align: right; }
-[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] { flex-wrap: wrap; gap: .5rem; }
+[data-testid="stColumn"]:has(.side-marker) > [data-testid="stVerticalBlock"] {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 14px; padding: 1rem;
+}
+[data-testid="stColumn"]:has(.side-marker) .stButton > button,
+[data-testid="stColumn"]:has(.side-marker) [data-testid="stPopover"],
+[data-testid="stColumn"]:has(.side-marker) [data-testid="stPopover"] > button { width: 100%; }
+[data-testid="stColumn"]:has(.side-marker) [data-testid="stPopover"] > button {
+    border-radius: 8px; font-weight: 600; justify-content: center;
+}
+.side-marker { display: none; }
 
 .sb-logo {
     background: var(--surface);
@@ -105,13 +424,8 @@ h1, h2, h3 { color: var(--ink); font-weight: 700; }
     text-align: center;
 }
 .sb-logo img { max-width: 100%; max-height: 64px; object-fit: contain; }
-.logo-fallback {
-    font-weight: 700; color: var(--brand); padding: .5rem 0; font-size: 1.05rem;
-}
-.sb-label {
-    font-size: .8rem; font-weight: 600; color: var(--muted);
-    margin: 1rem .25rem .5rem;
-}
+.logo-fallback { font-weight: 700; color: var(--brand); padding: .5rem 0; font-size: 1.05rem; }
+.sb-label { font-size: .8rem; font-weight: 600; color: var(--muted); margin: 1rem .25rem .5rem; }
 .sb-sep { height: 1px; background: var(--line); margin: 1rem 0; }
 .user-chip {
     display: flex; align-items: center; gap: .75rem;
@@ -127,7 +441,7 @@ h1, h2, h3 { color: var(--ink); font-weight: 700; }
 .user-chip .role { font-size: .82rem; color: var(--muted); }
 
 /* شاشة الدخول */
-.login-brand { text-align: center; margin: 2.5rem 0 1.25rem; }
+.login-brand { text-align: center; margin: 1.5rem 0 1.25rem; }
 .login-brand img { max-height: 72px; margin-bottom: 1rem; }
 .login-brand .t { font-size: 1.5rem; font-weight: 700; color: var(--ink); }
 .login-brand .s { color: var(--muted); margin-top: .25rem; }
@@ -229,22 +543,6 @@ iframe { border: 1px solid var(--line) !important; border-radius: 12px; backgrou
 .stTabs [aria-selected="true"] { color: var(--brand); }
 .stTabs [data-baseweb="tab-highlight"] { background: var(--brand); }
 
-/* اللوحة الجانبية اليمنى */
-[data-testid="stColumn"]:has(.side-marker) {
-    position: sticky; top: 3.5rem; align-self: flex-start;
-}
-[data-testid="stColumn"]:has(.side-marker) > [data-testid="stVerticalBlock"] {
-    background: var(--surface); border: 1px solid var(--line);
-    border-radius: 14px; padding: 1rem;
-}
-[data-testid="stColumn"]:has(.side-marker) .stButton > button,
-[data-testid="stColumn"]:has(.side-marker) [data-testid="stPopover"] > button,
-[data-testid="stColumn"]:has(.side-marker) [data-testid="stPopover"] { width: 100%; }
-[data-testid="stColumn"]:has(.side-marker) [data-testid="stPopover"] > button {
-    border-radius: 8px; font-weight: 600; justify-content: center;
-}
-.side-marker { display: none; }
-
 /* الجوال */
 @media (max-width: 768px) {
     .block-container { padding: 1rem; }
@@ -254,7 +552,23 @@ iframe { border: 1px solid var(--line) !important; border-radius: 12px; backgrou
 }
 </style>
 """
-st.markdown(CSS, unsafe_allow_html=True)
+
+
+def build_css():
+    rtl = cur_lang() == "ar"
+    return (
+        CSS_TEMPLATE.replace("__DIR__", "rtl" if rtl else "ltr")
+        .replace("__ALIGN__", "right" if rtl else "left")
+        .replace(
+            "__FONT__",
+            "'IBM Plex Sans Arabic', Tahoma, sans-serif"
+            if rtl
+            else "'Inter', 'Segoe UI', Arial, sans-serif",
+        )
+    )
+
+
+st.markdown(build_css(), unsafe_allow_html=True)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -284,8 +598,7 @@ def img_src(img):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_data_uri(url):
-    """يحمّل الصورة من الرابط على السيرفر ويرجعها كـ data URI (أو None لو فشل التحميل).
-    هذا يتجنب مشكلة الصور المكسورة عند حظر المتصفح للرابط الخارجي."""
+    """يحمّل الصورة من الرابط على السيرفر ويرجعها كـ data URI (أو None لو فشل)."""
     try:
         r = requests.get(url, timeout=8, headers={"User-Agent": "Mozilla/5.0"})
         ctype = r.headers.get("content-type", "").split(";")[0].strip().lower()
@@ -297,7 +610,7 @@ def fetch_data_uri(url):
 
 
 def logo_html(src, alt):
-    """وسم صورة للشعار، ولو تعذّر تحميلها يظهر اسم الشعار كنص بدل الأيقونة المكسورة."""
+    """وسم صورة للشعار، ولو تعذّر تحميلها يظهر اسم الشعار كنص."""
     if isinstance(src, (bytes, bytearray)):
         return f'<img src="{img_src(src)}" alt="{esc(alt)}">'
     uri = fetch_data_uri(str(src)) if src else None
@@ -354,16 +667,22 @@ DEFAULT_NEWS_IMAGE = "https://images.unsplash.com/photo-1551836022-d5d88e9218df?
 
 DEFAULT_DASHBOARDS = {
     "مؤشرات أداء قسم الـ QA": {
+        "name_en": "QA Department Performance Indicators",
         "title": "📊 QA Dashboard تحليل الأداء قسم الجودة",
+        "title_en": "📊 QA Dashboard – Quality Department Performance Analysis",
         "description": "تحتوي هذه الداشبورد على تحليلات شاملة للنشاطات اليومية والشهرية، بالإضافة إلى مقارنة الأداء ومؤشرات الأداء الرئيسية (KPIs).",
+        "description_en": "This dashboard contains comprehensive analyses of daily and monthly activities, along with performance comparisons and key performance indicators (KPIs).",
         "url": "https://datastudio.google.com/s/pZkBFbgR5as",
         "embed_url": "",
         "category": "مؤشرات الأداء",
         "files": [],
     },
     "مشروع الـ TPV": {
+        "name_en": "TPV Project",
         "title": "📈 TPV Dashboard",
+        "title_en": "📈 TPV Dashboard",
         "description": "تستعرض الداشبورد تفاصيل مشروع TPV ونتيجتها وتفاصيل الأنشطة المستخدمة يومياً من قسم الجودة ونسب الربحية لمختلف القطاعات.",
+        "description_en": "The dashboard presents the TPV project details and results, the activities used daily by the Quality department, and profitability rates across the different sectors.",
         "url": "https://datastudio.google.com/s/lzMLkPXvy28",
         "embed_url": "",
         "category": "المشاريع",
@@ -374,30 +693,31 @@ DEFAULT_DASHBOARDS = {
 DEFAULT_NEWS = [
     {
         "title": "📢 إطلاق نظام إدارة الجودة الجديد للعام الحالي",
+        "title_en": "📢 Launching the new quality management system for this year",
         "content": "تم تحديث كافة تقارير ومؤشرات الأداء الخاصة بقسم الجودة لرفع كفاءة ومتابعة العمليات التشغيلية اليومية.",
+        "content_en": "All reports and performance indicators of the Quality department have been updated to improve the efficiency of following up daily operations.",
         "image": "https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&auto=format&fit=crop&q=60",
     },
     {
         "title": "🚀 ورشة عمل لتقييم الأداء والإنتاجية",
+        "title_en": "🚀 Performance and productivity evaluation workshop",
         "content": "تابعوا تفاصيل الأنشطة اليومية عبر داشبورد TPV المحدثة ومراجعات التقارير الدورية المرفقة.",
+        "content_en": "Follow the daily activity details through the updated TPV dashboard and the attached periodic report reviews.",
         "image": "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&auto=format&fit=crop&q=60",
     },
 ]
 
 DEFAULT_USERS = {
-    "admin": {"password": "123", "name": "مدير النظام", "role": "admin"},
-    "manager.qa@fnrco.com.sa": {"password": "M123", "name": "مدير القسم", "role": "manager"},
-    "hossam.saeed@fnrco.com.sa": {"password": "HS123", "name": "حسام سعيد", "role": "user"},
-    "abdelrahman.lashine@fnrco.com.sa": {"password": "AL123", "name": "عبد الرحمن لاشين", "role": "user"},
-    "yassmen.khaled@fnrco.com.sa": {"password": "HS123", "name": "ياسمين خالد", "role": "user"},
-    "kenzy.hisham@fnrco.com.sa": {"password": "KH123", "name": "كنزي هشام", "role": "user"},
-    "lamia.adel@fnrco.com.sa": {"password": "LA123", "name": "لمياء عادل", "role": "user"},
-    "nancy.safwat@fnrco.com.sa": {"password": "NS123", "name": "نانسي صفوت", "role": "user"},
-    "abdallah.zaukzouk@fnrco.com.sa": {"password": "AZ123", "name": "عبد الله زقزوق", "role": "user"},
+    "admin": {"password": "123", "name": "مدير النظام", "name_en": "System Admin", "role": "admin"},
+    "manager.qa@fnrco.com.sa": {"password": "M123", "name": "مدير القسم", "name_en": "Department Manager", "role": "manager"},
+    "hossam.saeed@fnrco.com.sa": {"password": "HS123", "name": "حسام سعيد", "name_en": "Hossam Saeed", "role": "user"},
+    "abdelrahman.lashine@fnrco.com.sa": {"password": "AL123", "name": "عبد الرحمن لاشين", "name_en": "Abdelrahman Lashine", "role": "user"},
+    "yassmen.khaled@fnrco.com.sa": {"password": "HS123", "name": "ياسمين خالد", "name_en": "Yassmen Khaled", "role": "user"},
+    "kenzy.hisham@fnrco.com.sa": {"password": "KH123", "name": "كنزي هشام", "name_en": "Kenzy Hisham", "role": "user"},
+    "lamia.adel@fnrco.com.sa": {"password": "LA123", "name": "لمياء عادل", "name_en": "Lamia Adel", "role": "user"},
+    "nancy.safwat@fnrco.com.sa": {"password": "NS123", "name": "نانسي صفوت", "name_en": "Nancy Safwat", "role": "user"},
+    "abdallah.zaukzouk@fnrco.com.sa": {"password": "AZ123", "name": "عبد الله زقزوق", "name_en": "Abdallah Zaukzouk", "role": "user"},
 }
-
-ROLE_LABELS = {"admin": "مدير النظام", "manager": "مدير القسم", "user": "موظف"}
-ROLE_FROM_AR = {"أدمن": "admin", "مدير": "manager", "موظف": "user"}
 
 
 @st.cache_resource
@@ -411,11 +731,23 @@ def get_store():
         "company_logo": "https://raw.githubusercontent.com/ahmedgouda2727/QA-Dashboard-APP/main/Linrco-Egypt.PNG",
         "qa_logo": "https://raw.githubusercontent.com/ahmedgouda2727/QA-Dashboard-APP/main/QA.png",
         "totp_secret": "JBSWY3DPEHPK3PXP",
-        "trusted_devices": [{"name": "موبايل الشركة الرئيسي (مدير النظام)", "user": "admin"}],
+        "trusted_devices": [
+            {
+                "name": "موبايل الشركة الرئيسي (مدير النظام)",
+                "name_en": "Main company phone (System Admin)",
+                "user": "admin",
+            }
+        ],
     }
 
 
 store = get_store()
+
+
+def project_name(key):
+    d = store["dashboards"].get(key, {})
+    return d.get("name_en") if cur_lang() == "en" and d.get("name_en") else key
+
 
 # حالة الجلسة الخاصة بكل متصفح
 for _key, _default in {
@@ -444,7 +776,7 @@ def login_brand(title, subtitle):
     st.markdown(
         f"""
         <div class="login-brand">
-            {logo_html(store['company_logo'], 'ليناركو')}
+            {logo_html(store['company_logo'], t('company_name'))}
             <div class="t">{esc(title)}</div>
             <div class="s">{esc(subtitle)}</div>
         </div>
@@ -456,11 +788,12 @@ def login_brand(title, subtitle):
 def render_login():
     _, mid, _ = st.columns([1, 1.3, 1])
     with mid:
-        login_brand("نظام الداشبوردات - قسم الجودة", "سجّل الدخول باسم المستخدم أو البريد الإلكتروني")
+        language_selector("lang_login")
+        login_brand(t("login_title"), t("login_sub"))
         with st.form("login_form"):
-            username_input = st.text_input("اسم المستخدم / البريد الإلكتروني")
-            password_input = st.text_input("كلمة المرور", type="password")
-            submitted = st.form_submit_button("تسجيل الدخول", type="primary")
+            username_input = st.text_input(t("username_label"))
+            password_input = st.text_input(t("password"), type="password")
+            submitted = st.form_submit_button(t("sign_in"), type="primary")
 
         if submitted:
             clean = username_input.strip().lower()
@@ -472,18 +805,19 @@ def render_login():
                     st.session_state.two_fa_passed = True
                 st.rerun()
             else:
-                st.error("اسم المستخدم أو كلمة المرور غير صحيحة.")
+                st.error(t("login_error"))
 
 
 def render_2fa():
     _, mid, _ = st.columns([1, 1.3, 1])
     with mid:
-        login_brand("التحقق الثنائي", "أدخل الرمز المكوّن من 6 أرقام من تطبيق Google Authenticator")
+        language_selector("lang_2fa")
+        login_brand(t("tfa_title"), t("tfa_sub"))
         with st.form("2fa_form"):
-            totp_code = st.text_input("رمز التحقق", max_chars=6)
-            device_name = st.text_input("اسم الجهاز أو المتصفح", value="جهاز موثوق جديد")
-            trust = st.checkbox("وثّق هذا الجهاز (لا تطلب الرمز مرة أخرى)")
-            verify = st.form_submit_button("تحقق ودخول", type="primary")
+            totp_code = st.text_input(t("tfa_code"), max_chars=6)
+            device_name = st.text_input(t("device_name"), value=t("device_default"))
+            trust = st.checkbox(t("trust_device"))
+            verify = st.form_submit_button(t("verify"), type="primary")
 
         if verify:
             totp = pyotp.TOTP(store["totp_secret"])
@@ -499,44 +833,49 @@ def render_2fa():
                         store["trusted_devices"].append(entry)
                 st.rerun()
             else:
-                st.error("الرمز غير صحيح أو انتهت صلاحيته. انتظر ظهور الرمز الجديد وحاول مرة أخرى.")
+                st.error(t("tfa_error"))
 
-        if st.button("رجوع لتسجيل الدخول"):
+        if st.button(t("back_login")):
             logout()
 
 
 def render_side_panel(user_info, is_admin):
-    """لوحة جانبية على اليمين (بدل st.sidebar الذي كان يختفي):
-    لوجو الشركة + لوجو القسم + أهلاً بك واسم المستخدم + تسجيل الخروج.
-    أدوات الأدمن (الإعدادات وتغيير الشعارات) تظهر للأدمن فقط."""
+    """لوحة جانبية: يمين في العربي وشمال في الإنجليزي.
+    للجميع: لوجو الشركة + لوجو القسم + أهلاً بك واسم المستخدم + اختيار اللغة + تسجيل الخروج.
+    للأدمن فقط: الإعدادات وتغيير الشعارات."""
     st.markdown('<span class="side-marker"></span>', unsafe_allow_html=True)
 
     st.markdown(
-        f'<div class="sb-logo">{logo_html(store["company_logo"], "ليناركو")}</div>'
-        f'<div class="sb-logo">{logo_html(store["qa_logo"], "قسم الجودة")}</div>',
+        f'<div class="sb-logo">{logo_html(store["company_logo"], t("company_name"))}</div>'
+        f'<div class="sb-logo">{logo_html(store["qa_logo"], t("qa_name"))}</div>',
         unsafe_allow_html=True,
     )
 
+    name = loc(user_info, "name")
     st.markdown(
         f"""
         <div class="user-chip">
-            <div class="avatar">{esc(user_info["name"][:1])}</div>
+            <div class="avatar">{esc(name[:1])}</div>
             <div>
-                <div class="name">أهلاً بك، {esc(user_info["name"])}</div>
-                <div class="role">{ROLE_LABELS[user_info["role"]]}</div>
+                <div class="name">{esc(t('welcome', name=name))}</div>
+                <div class="role">{esc(role_label(user_info['role']))}</div>
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
+    # ── اختيار اللغة (للجميع) ──
+    st.markdown(f'<div class="sb-label">{esc(t("language"))}</div>', unsafe_allow_html=True)
+    language_selector("lang_panel")
+
     # ── أدوات الأدمن فقط ──
     if is_admin:
         on_settings = st.session_state.show_admin_settings
-        st.markdown('<div class="sb-label">القائمة</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="sb-label">{esc(t("menu"))}</div>', unsafe_allow_html=True)
 
         if st.button(
-            "🏠 الرئيسية",
+            t("home"),
             key="nav_home",
             type="secondary" if on_settings else "primary",
         ):
@@ -544,50 +883,44 @@ def render_side_panel(user_info, is_admin):
             st.rerun()
 
         if st.button(
-            "⚙️ إعدادات النظام والأمان",
+            t("admin_settings"),
             key="nav_admin",
             type="primary" if on_settings else "secondary",
         ):
             st.session_state.show_admin_settings = True
             st.rerun()
 
-        with st.popover("🖼️ تغيير الشعارات"):
+        with st.popover(t("change_logos")):
             up_c = st.file_uploader(
-                "شعار ليناركو الجديد", type=["png", "jpg", "jpeg"], key="hd_c_logo"
+                t("new_company_logo"), type=["png", "jpg", "jpeg"], key="hd_c_logo"
             )
-            if up_c is not None and st.button("حفظ شعار الشركة", key="save_c_logo"):
+            if up_c is not None and st.button(t("save_company_logo"), key="save_c_logo"):
                 store["company_logo"] = enhance_image(up_c)
                 st.rerun()
 
             st.markdown('<div class="sb-sep"></div>', unsafe_allow_html=True)
 
             up_q = st.file_uploader(
-                "شعار قسم الجودة الجديد", type=["png", "jpg", "jpeg"], key="hd_qa_logo"
+                t("new_qa_logo"), type=["png", "jpg", "jpeg"], key="hd_qa_logo"
             )
-            if up_q is not None and st.button("حفظ شعار الجودة", key="save_qa_logo"):
+            if up_q is not None and st.button(t("save_qa_logo"), key="save_qa_logo"):
                 store["qa_logo"] = enhance_image(up_q)
                 st.rerun()
 
     st.markdown('<div class="sb-sep"></div>', unsafe_allow_html=True)
-    if st.button("🚪 تسجيل الخروج", key="logout_btn"):
+    if st.button(t("logout"), key="logout_btn"):
         logout()
 
 
 def render_admin_settings(current_user):
-    st.title("إعدادات النظام والأمان")
-    st.caption("هذه الصفحة للأدمن فقط: إدارة المصادقة الثنائية والأجهزة الموثوقة والمستخدمين.")
+    st.title(t("settings_title"))
+    st.caption(t("settings_caption"))
 
-    tab_sec, tab_users = st.tabs(["الأمان والتحقق الثنائي", "المستخدمون والصلاحيات"])
+    tab_sec, tab_users = st.tabs([t("tab_security"), t("tab_users")])
 
     with tab_sec:
-        section_title("ربط موبايل الشركة بتطبيق Google Authenticator")
-        st.markdown(
-            """
-            1. حمّل تطبيق **Google Authenticator** على هاتفك.
-            2. اضغط **(+)** ثم اختر **Scan a QR code**.
-            3. امسح الكود التالي مرة واحدة فقط، وسيبقى صالحاً دائماً.
-            """
-        )
+        section_title(t("link_phone_title"))
+        st.markdown(t("link_steps"))
         uri = pyotp.totp.TOTP(store["totp_secret"]).provisioning_uri(
             name="Linrco-QA-Admin", issuer_name="Linrco Quality Assurance"
         )
@@ -596,60 +929,66 @@ def render_admin_settings(current_user):
         st.image(buf.getvalue(), width=230)
         st.code(store["totp_secret"], language="text")
 
-        section_title("الأجهزة الموثوقة")
+        section_title(t("devices_title"))
         devices = store["trusted_devices"]
         if devices:
             for i, dev in enumerate(devices):
                 c1, c2 = st.columns([4, 1])
                 with c1:
-                    st.write(f"**{dev['name']}**  ·  المستخدم: {dev['user']}")
+                    st.write(f"**{loc(dev, 'name')}**  ·  {t('user_word')}: {dev['user']}")
                 with c2:
-                    if st.button("إزالة الجهاز", key=f"del_dev_{i}"):
+                    if st.button(t("remove_device"), key=f"del_dev_{i}"):
                         devices.pop(i)
                         st.rerun()
         else:
-            st.info("لا توجد أجهزة موثوقة مسجلة حالياً.")
+            st.info(t("no_devices"))
 
     with tab_users:
-        section_title("المستخدمون الحاليون")
+        section_title(t("current_users"))
         st.table(
             [
                 {
-                    "المستخدم / الإيميل": uname,
-                    "الاسم": udata["name"],
-                    "الصلاحية": ROLE_LABELS[udata["role"]],
+                    t("col_user"): uname,
+                    t("col_name"): loc(udata, "name"),
+                    t("col_role"): role_label(udata["role"]),
                 }
                 for uname, udata in store["users"].items()
             ]
         )
 
-        section_title("إضافة مستخدم جديد")
+        section_title(t("add_user"))
         with st.form("add_user_form", clear_on_submit=True):
             c1, c2 = st.columns(2)
             with c1:
-                new_email = st.text_input("البريد الإلكتروني / اسم المستخدم")
-                new_name = st.text_input("الاسم")
+                new_email = st.text_input(t("f_email"))
+                new_name = st.text_input(t("f_name"))
             with c2:
-                new_pass = st.text_input("كلمة المرور", type="password")
-                new_role = st.selectbox("الصلاحية", list(ROLE_FROM_AR.keys()))
-            add_user = st.form_submit_button("إضافة المستخدم", type="primary")
+                new_pass = st.text_input(t("f_pass"), type="password")
+                new_role = st.selectbox(
+                    t("f_role"), ["admin", "manager", "user"], format_func=role_label
+                )
+            add_user = st.form_submit_button(t("add_user_btn"), type="primary")
 
         if add_user:
             if new_email and new_pass and new_name:
                 store["users"][new_email.strip().lower()] = {
                     "password": new_pass,
                     "name": new_name,
-                    "role": ROLE_FROM_AR[new_role],
+                    "role": new_role,
                 }
-                st.success(f"تمت إضافة {new_name}.")
+                st.success(t("user_added", name=new_name))
                 st.rerun()
             else:
-                st.warning("يرجى ملء جميع الحقول.")
+                st.warning(t("fill_all"))
 
-        section_title("حذف مستخدم")
+        section_title(t("delete_user"))
         deletable = [u for u in store["users"] if u not in ("admin", current_user)]
-        target = st.selectbox("اختر المستخدم", deletable)
-        if st.button("حذف المستخدم المختار") and target in store["users"]:
+        target = st.selectbox(
+            t("choose_user"),
+            deletable,
+            format_func=lambda u: f"{loc(store['users'][u], 'name')} ({u})" if u in store["users"] else u,
+        )
+        if st.button(t("delete_selected")) and target in store["users"]:
             del store["users"][target]
             st.rerun()
 
@@ -658,88 +997,111 @@ def render_manage_panel():
     """لوحة إدارة المشاريع والأخبار (للأدمن والمدير)."""
     dashboards = store["dashboards"]
 
-    with st.expander("لوحة إدارة المشاريع والملفات والأخبار"):
-        tab1, tab2, tab3 = st.tabs(["تعديل مشروع وإرفاق ملفات", "إضافة مشروع", "إضافة خبر"])
+    with st.expander(t("manage_panel")):
+        tab1, tab2, tab3 = st.tabs([t("tab_edit"), t("tab_add_project"), t("tab_add_news")])
 
         with tab1:
-            edit_key = st.selectbox("المشروع", list(dashboards.keys()), key="edit_select")
+            edit_key = st.selectbox(
+                t("project"), list(dashboards.keys()), format_func=project_name, key="edit_select"
+            )
             if edit_key:
                 cur = dashboards[edit_key]
-                new_title = st.text_input("العنوان", value=cur["title"], key=f"edit_title_{edit_key}")
-                new_desc = st.text_area("الوصف", value=cur["description"], key=f"edit_desc_{edit_key}")
-                new_url = st.text_input("الرابط (URL)", value=cur["url"], key=f"edit_url_{edit_key}")
+                new_title = st.text_input(t("f_title"), value=cur["title"], key=f"edit_title_{edit_key}")
+                new_title_en = st.text_input(
+                    t("f_title_en"), value=cur.get("title_en", ""), key=f"edit_title_en_{edit_key}"
+                )
+                new_desc = st.text_area(t("f_desc"), value=cur["description"], key=f"edit_desc_{edit_key}")
+                new_desc_en = st.text_area(
+                    t("f_desc_en"), value=cur.get("description_en", ""), key=f"edit_desc_en_{edit_key}"
+                )
+                new_url = st.text_input(t("f_url"), value=cur["url"], key=f"edit_url_{edit_key}")
                 new_embed = st.text_input(
-                    "رابط التضمين Embed URL (اختياري)",
+                    t("f_embed"),
                     value=cur.get("embed_url", ""),
                     key=f"edit_embed_{edit_key}",
-                    help="لو تركته فارغاً سيحاول النظام تحويل الرابط العادي تلقائياً.",
+                    help=t("embed_help"),
                 )
                 new_cat = st.text_input(
-                    "التصنيف", value=cur.get("category", "عام"), key=f"edit_cat_{edit_key}"
+                    t("f_category"),
+                    value=cat_label(cur.get("category", "عام")),
+                    key=f"edit_cat_{edit_key}",
                 )
                 uploaded = st.file_uploader(
-                    "إرفاق مستند",
+                    t("attach_doc"),
                     type=["docx", "xlsx", "pdf", "vsdx", "pbix", "accdb", "msg", "txt"],
                     key=f"up_{edit_key}",
                 )
-                if st.button("حفظ التعديلات", type="primary", key=f"save_{edit_key}"):
+                if st.button(t("save_changes"), type="primary", key=f"save_{edit_key}"):
                     files = cur.get("files", [])
                     if uploaded is not None:
                         files.append({"name": uploaded.name, "data": uploaded.getvalue()})
                     dashboards[edit_key] = {
+                        **cur,
                         "title": new_title,
+                        "title_en": new_title_en.strip(),
                         "description": new_desc,
+                        "description_en": new_desc_en.strip(),
                         "url": new_url,
                         "embed_url": new_embed.strip(),
-                        "category": new_cat.strip() or "عام",
+                        "category": norm_cat(new_cat),
                         "files": files,
                     }
                     st.rerun()
 
         with tab2:
-            add_name = st.text_input("اسم المشروع (يظهر في القائمة)", key="add_name")
-            add_title = st.text_input("العنوان الرئيسي", key="add_title")
-            add_desc = st.text_area("الوصف", key="add_desc")
-            add_url = st.text_input("رابط الداشبورد", key="add_url")
-            add_embed = st.text_input("رابط التضمين Embed URL (اختياري)", key="add_embed")
-            add_cat = st.text_input("التصنيف", value="عام", key="add_cat")
-            if st.button("إضافة المشروع", type="primary", key="add_project_btn"):
+            add_name = st.text_input(t("add_name"), key="add_name")
+            add_name_en = st.text_input(t("add_name_en"), key="add_name_en")
+            add_title = st.text_input(t("add_main_title"), key="add_title")
+            add_title_en = st.text_input(t("f_title_en"), key="add_title_en")
+            add_desc = st.text_area(t("f_desc"), key="add_desc")
+            add_desc_en = st.text_area(t("f_desc_en"), key="add_desc_en")
+            add_url = st.text_input(t("add_dash_url"), key="add_url")
+            add_embed = st.text_input(t("f_embed"), key="add_embed")
+            add_cat = st.text_input(t("f_category"), value=cat_label("عام"), key="add_cat")
+            if st.button(t("add_project_btn"), type="primary", key="add_project_btn"):
                 if add_name and add_url:
                     dashboards[add_name] = {
+                        "name_en": add_name_en.strip(),
                         "title": add_title,
+                        "title_en": add_title_en.strip(),
                         "description": add_desc,
+                        "description_en": add_desc_en.strip(),
                         "url": add_url,
                         "embed_url": add_embed.strip(),
-                        "category": add_cat.strip() or "عام",
+                        "category": norm_cat(add_cat),
                         "files": [],
                     }
                     st.rerun()
                 else:
-                    st.warning("أدخل اسم المشروع والرابط على الأقل.")
+                    st.warning(t("need_name_url"))
 
         with tab3:
-            news_title = st.text_input("عنوان الخبر", key="news_t")
-            news_content = st.text_area("نص الخبر", key="news_c")
-            news_img = st.file_uploader("صورة الخبر", type=["png", "jpg", "jpeg"], key="news_img_upload")
-            if st.button("نشر الخبر", type="primary", key="publish_news_btn"):
+            news_title = st.text_input(t("news_title"), key="news_t")
+            news_title_en = st.text_input(t("news_title_en"), key="news_t_en")
+            news_content = st.text_area(t("news_text"), key="news_c")
+            news_content_en = st.text_area(t("news_text_en"), key="news_c_en")
+            news_img = st.file_uploader(t("news_image"), type=["png", "jpg", "jpeg"], key="news_img_upload")
+            if st.button(t("publish_news"), type="primary", key="publish_news_btn"):
                 if news_title and news_content:
                     store["news"].append(
                         {
                             "title": news_title,
+                            "title_en": news_title_en.strip(),
                             "content": news_content,
+                            "content_en": news_content_en.strip(),
                             "image": enhance_image(news_img) if news_img is not None else DEFAULT_NEWS_IMAGE,
                         }
                     )
                     st.rerun()
                 else:
-                    st.warning("أدخل عنوان الخبر ونصه.")
+                    st.warning(t("need_news"))
 
 
 def render_news(can_manage):
     news = store["news"]
     if not news:
         return
-    section_title("آخر الأخبار والتحديثات")
+    section_title(t("latest_news"))
 
     per_row = 3 if len(news) >= 3 else len(news)
     for start in range(0, len(news), per_row):
@@ -753,22 +1115,22 @@ def render_news(can_manage):
                     <div class="news-card">
                         {image_html}
                         <div class="news-body">
-                            <div class="nt">{esc(item['title'])}</div>
-                            <div class="nc">{esc(item['content'])}</div>
+                            <div class="nt">{esc(loc(item, 'title'))}</div>
+                            <div class="nc">{esc(loc(item, 'content'))}</div>
                         </div>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
                 if can_manage:
-                    with st.expander("إدارة الخبر"):
+                    with st.expander(t("manage_news")):
                         new_img = st.file_uploader(
-                            "صورة جديدة", type=["png", "jpg", "jpeg"], key=f"news_ch_{idx}"
+                            t("new_image"), type=["png", "jpg", "jpeg"], key=f"news_ch_{idx}"
                         )
-                        if new_img is not None and st.button("حفظ الصورة", key=f"btn_ch_{idx}"):
+                        if new_img is not None and st.button(t("save_image"), key=f"btn_ch_{idx}"):
                             news[idx]["image"] = enhance_image(new_img)
                             st.rerun()
-                        if st.button("حذف الخبر", key=f"btn_del_news_{idx}"):
+                        if st.button(t("delete_news"), key=f"btn_del_news_{idx}"):
                             news.pop(idx)
                             st.rerun()
 
@@ -776,71 +1138,86 @@ def render_news(can_manage):
 def render_projects(can_manage):
     dashboards = store["dashboards"]
     if not dashboards:
-        st.info("لا توجد مشاريع حالياً.")
+        st.info(t("no_projects"))
         return
 
-    section_title("المشاريع والتقارير")
+    section_title(t("projects_title"))
 
     # ── الفلاتر: بحث نصي + تصنيف ──
     categories = sorted({(d.get("category") or "عام") for d in dashboards.values()})
     f1, f2 = st.columns([2, 1])
     with f1:
         query = st.text_input(
-            "بحث",
-            placeholder="اكتب جزءاً من اسم المشروع أو وصفه...",
+            t("search"),
+            placeholder=t("search_ph"),
             key="project_query",
         ).strip().lower()
     with f2:
-        category = st.selectbox("التصنيف", ["الكل"] + categories, key="project_category")
+        category = st.selectbox(
+            t("f_category"),
+            ["__all__"] + categories,
+            format_func=lambda c: t("all") if c == "__all__" else cat_label(c),
+            key="project_category",
+        )
 
     def matches(name, d):
-        if category != "الكل" and (d.get("category") or "عام") != category:
+        if category != "__all__" and (d.get("category") or "عام") != category:
             return False
         if not query:
             return True
-        haystack = f"{name} {d.get('title', '')} {d.get('description', '')}".lower()
+        haystack = " ".join(
+            [
+                name,
+                d.get("name_en", ""),
+                d.get("title", ""),
+                d.get("title_en", ""),
+                d.get("description", ""),
+                d.get("description_en", ""),
+            ]
+        ).lower()
         return query in haystack
 
     options = [name for name, d in dashboards.items() if matches(name, d)]
-    st.caption(f"عدد النتائج: {len(options)} من {len(dashboards)}")
+    st.caption(t("results_count", n=len(options), total=len(dashboards)))
 
     if not options:
-        st.info("لا توجد مشاريع مطابقة. غيّر كلمة البحث أو التصنيف.")
+        st.info(t("no_match"))
         return
 
     # لو المشروع المختار خرج من نتائج الفلتر نرجع لأول نتيجة
     if st.session_state.get("project_select") not in options:
         st.session_state["project_select"] = options[0]
-    selected = st.selectbox("اختر المشروع", options, key="project_select")
+    selected = st.selectbox(
+        t("choose_project"), options, format_func=project_name, key="project_select"
+    )
 
     # ── عارض التقرير ──
     data = dashboards[selected]
     url = safe_url(data["url"])
     embed_url = safe_url(data.get("embed_url", "")) or to_embed_url(data["url"])
     link_html = (
-        f'<a class="btn-link" href="{esc(url, quote=True)}" target="_blank" rel="noopener">فتح في تبويب جديد</a>'
+        f'<a class="btn-link" href="{esc(url, quote=True)}" target="_blank" rel="noopener">{esc(t("open_new_tab"))}</a>'
         if url
         else ""
     )
-    files_n = len(data.get("files", []))
+    files = data.get("files", [])
     st.markdown(
         f"""
         <div class="viewer-head">
-            <span class="badge">{esc(data.get('category') or 'عام')}</span>
-            <div class="vt">{esc(data['title'])}</div>
-            <div class="vd">{esc(data['description'])}</div>
+            <span class="badge">{esc(cat_label(data.get('category')))}</span>
+            <div class="vt">{esc(loc(data, 'title'))}</div>
+            <div class="vd">{esc(loc(data, 'description'))}</div>
             {link_html}
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    files = data.get("files", [])
     if files:
-        with st.expander(f"الملفات المرفقة ({files_n})"):
+        with st.expander(t("attached_files", n=len(files))):
             for j, f in enumerate(files):
                 st.download_button(
-                    label=f"تحميل {f['name']}",
+                    label=t("download", name=f["name"]),
                     data=f["data"],
                     file_name=f["name"],
                     mime="application/octet-stream",
@@ -849,22 +1226,13 @@ def render_projects(can_manage):
 
     if embed_url:
         st.components.v1.iframe(embed_url, height=820, scrolling=True)
-        st.caption("لو التقرير لم يظهر هنا، افتحه من زر «فتح في تبويب جديد».")
+        st.caption(t("iframe_hint"))
         if can_manage:
-            with st.expander("التقرير لا يظهر؟ خطوات الحل"):
-                st.markdown(
-                    """
-                    1. في Looker Studio: **File ← Embed report ← Enable embedding**، ثم انسخ **Embed URL** والصقه في خانة «رابط التضمين» في لوحة الإدارة.
-                    2. الروابط القصيرة `/s/...` لا تعمل داخل iframe، ويجب أن يكون الرابط على شكل `/embed/reporting/...`.
-                    3. تأكد من مشاركة التقرير (Share) مع المستخدمين أو المؤسسة، أو «Anyone with the link».
-                    4. إذا كان التقرير خاصاً بحسابات Google، يجب أن يكون المستخدم مسجّلاً الدخول بحساب Google في نفس المتصفح، وأن لا يمنع المتصفح الكوكيز الخارجية.
-
-                    الرابط المستخدم حالياً للعرض:
-                    """
-                )
+            with st.expander(t("trouble")):
+                st.markdown(t("trouble_md"))
                 st.code(embed_url, language="text")
     else:
-        st.warning("رابط المشروع غير صالح. يجب أن يبدأ بـ http:// أو https://")
+        st.warning(t("invalid_url"))
 
 
 def render_portal(user_info, can_manage):
@@ -875,13 +1243,13 @@ def render_portal(user_info, can_manage):
         f"""
         <div class="hero">
             <div>
-                <div class="hero-title">بوابة تقارير ومشاريع الجودة</div>
-                <div class="hero-sub">مرحباً {esc(user_info['name'])}، هنا تجد تقارير قسم الجودة في ليناركو ومؤشرات الأداء ومستندات المشاريع.</div>
+                <div class="hero-title">{esc(t('hero_title'))}</div>
+                <div class="hero-sub">{esc(t('hero_sub', name=loc(user_info, 'name')))}</div>
             </div>
             <div class="hero-stats">
-                <div class="hero-stat"><b>{len(dashboards)}</b><span>مشاريع</span></div>
-                <div class="hero-stat"><b>{len(store['news'])}</b><span>أخبار</span></div>
-                <div class="hero-stat"><b>{files_total}</b><span>ملفات مرفقة</span></div>
+                <div class="hero-stat"><b>{len(dashboards)}</b><span>{esc(t('stat_projects'))}</span></div>
+                <div class="hero-stat"><b>{len(store['news'])}</b><span>{esc(t('stat_news'))}</span></div>
+                <div class="hero-stat"><b>{files_total}</b><span>{esc(t('stat_files'))}</span></div>
             </div>
         </div>
         """,
@@ -913,6 +1281,7 @@ else:
     is_admin = user_info["role"] == "admin"
     can_manage = user_info["role"] in ("admin", "manager")
 
+    # العمود الأول هو اللوحة الجانبية: يظهر يمين الصفحة في العربي (RTL) وشمالها في الإنجليزي (LTR)
     side_col, main_col = st.columns([1, 3.6], gap="large")
 
     with side_col:
