@@ -165,6 +165,11 @@ TR = {
         "stat_news": "أخبار",
         "stat_files": "ملفات مرفقة",
         "general": "عام",
+        "saved_github": "تم حفظ الشعار بشكل دائم ✅",
+        "saved_temp": "تم حفظ الشعار على السيرفر فقط، وقد يُمسح عند إعادة تشغيل التطبيق. فعّل الحفظ الدائم (GitHub) من الأسرار.",
+        "saved_failed": "تعذّر الحفظ الدائم على GitHub، راجع GITHUB_TOKEN و GITHUB_REPO. الشعار محفوظ مؤقتاً فقط.",
+        "storage_on": "✅ الحفظ الدائم على GitHub مفعّل",
+        "storage_off": "⚠️ الحفظ على السيرفر فقط (قد يُمسح عند إعادة التشغيل)",
     },
     "en": {
         "language": "Language",
@@ -299,6 +304,11 @@ The link currently used for display:
         "stat_news": "News",
         "stat_files": "Attached files",
         "general": "General",
+        "saved_github": "Logo saved permanently ✅",
+        "saved_temp": "Logo saved on the server only and may be lost when the app restarts. Enable permanent storage (GitHub) via secrets.",
+        "saved_failed": "Permanent save to GitHub failed; check GITHUB_TOKEN and GITHUB_REPO. The logo is saved temporarily only.",
+        "storage_on": "✅ Permanent GitHub storage is enabled",
+        "storage_off": "⚠️ Server-only storage (may be lost on restart)",
     },
 }
 
@@ -605,10 +615,21 @@ def enhance_image(image_file):
     return buf.getvalue()
 
 
+def sniff_mime(b):
+    head = bytes(b[:12])
+    if head.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if head.startswith(b"GIF8"):
+        return "image/gif"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "image/webp"
+    return "image/png"
+
+
 def img_src(img):
     """يحوّل رابط أو bytes إلى قيمة صالحة لوسم <img>."""
     if isinstance(img, (bytes, bytearray)):
-        return "data:image/png;base64," + base64.b64encode(img).decode()
+        return f"data:{sniff_mime(img)};base64," + base64.b64encode(img).decode()
     return esc(str(img), quote=True)
 
 
@@ -736,27 +757,152 @@ DEFAULT_USERS = {
 }
 
 
-# ── حفظ الأجهزة الموثوقة في ملف JSON (التوكن نفسه لا يُحفظ، فقط الـ hash الخاص به) ──
+# ──────────────────────────────────────────────────────────────
+# التخزين الدائم (الشعارات والأجهزة الموثوقة)
+#  1) قرص السيرفر (مجلد app_data)
+#  2) اختياري: فرع على GitHub (من خلال st.secrets) ليبقى الحفظ دائماً حتى بعد إعادة تشغيل التطبيق
+#     GITHUB_TOKEN = "..."   GITHUB_REPO = "owner/repo"   GITHUB_BRANCH = "app-data"
+# ──────────────────────────────────────────────────────────────
+APP_DIR = Path(__file__).resolve().parent
+DATA_DIR = Path(os.environ.get("APP_DATA_DIR", str(APP_DIR / "app_data")))
 TRUST_DAYS = 90
-DEVICES_FILE = Path(os.environ.get("TRUSTED_DEVICES_FILE", "trusted_devices.json"))
+
+
+def _gh_conf():
+    try:
+        token = st.secrets.get("GITHUB_TOKEN")
+        repo = st.secrets.get("GITHUB_REPO")
+        branch = st.secrets.get("GITHUB_BRANCH", "app-data")
+    except Exception:
+        return None
+    return (token, repo, branch) if token and repo else None
+
+
+def _gh_headers(token, raw=False):
+    return {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github.raw+json" if raw else "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+
+def _gh_read(name):
+    conf = _gh_conf()
+    if not conf:
+        return None
+    token, repo, branch = conf
+    try:
+        r = requests.get(
+            f"https://api.github.com/repos/{repo}/contents/{name}",
+            params={"ref": branch},
+            headers=_gh_headers(token, raw=True),
+            timeout=15,
+        )
+        return r.content if r.status_code == 200 else None
+    except Exception:
+        return None
+
+
+def _gh_ensure_branch(token, repo, branch):
+    base = f"https://api.github.com/repos/{repo}"
+    h = _gh_headers(token)
+    if requests.get(f"{base}/git/ref/heads/{branch}", headers=h, timeout=15).status_code == 200:
+        return True
+    default = requests.get(base, headers=h, timeout=15).json().get("default_branch", "main")
+    sha = requests.get(f"{base}/git/ref/heads/{default}", headers=h, timeout=15).json()["object"]["sha"]
+    r = requests.post(
+        f"{base}/git/refs", headers=h, json={"ref": f"refs/heads/{branch}", "sha": sha}, timeout=15
+    )
+    return r.status_code in (200, 201)
+
+
+def _gh_write(name, data):
+    conf = _gh_conf()
+    if not conf:
+        return False
+    token, repo, branch = conf
+    try:
+        if not _gh_ensure_branch(token, repo, branch):
+            return False
+        url = f"https://api.github.com/repos/{repo}/contents/{name}"
+        h = _gh_headers(token)
+        payload = {
+            "message": f"update {name}",
+            "content": base64.b64encode(data).decode(),
+            "branch": branch,
+        }
+        cur = requests.get(url, params={"ref": branch}, headers=h, timeout=15)
+        if cur.status_code == 200:
+            payload["sha"] = cur.json()["sha"]
+        r = requests.put(url, headers=h, json=payload, timeout=30)
+        return r.status_code in (200, 201)
+    except Exception:
+        return False
+
+
+def persist_write(name, data, remote=True):
+    """يحفظ الملف على القرص (+ GitHub لو مفعّل). يرجع: github | github_failed | disk | memory."""
+    on_disk = False
+    try:
+        path = DATA_DIR / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        on_disk = True
+    except Exception:
+        pass
+    if remote and _gh_conf():
+        return "github" if _gh_write(name, data) else "github_failed"
+    return "disk" if on_disk else "memory"
+
+
+def persist_read(name):
+    try:
+        path = DATA_DIR / name
+        if path.exists():
+            return path.read_bytes()
+    except Exception:
+        pass
+    data = _gh_read(name)
+    if data:
+        persist_write(name, data, remote=False)  # كاش محلي
+    return data
+
+
+def bundled_file(*names):
+    """ملف موجود داخل مجلد التطبيق (مثلاً الشعار الذي رفعته في الريبو)."""
+    for n in names:
+        try:
+            p = APP_DIR / n
+            if p.exists():
+                return p.read_bytes()
+        except Exception:
+            pass
+    return None
 
 
 def load_devices():
     try:
-        data = json.loads(DEVICES_FILE.read_text(encoding="utf-8"))
+        raw = persist_read("trusted_devices.json")
+        data = json.loads(raw.decode("utf-8")) if raw else []
         now = time.time()
         return [d for d in data if d.get("expires_at", 0) > now and d.get("token_hash")]
     except Exception:
         return []
 
 
-def save_devices(devices):
-    try:
-        tmp = DEVICES_FILE.with_suffix(".tmp")
-        tmp.write_text(json.dumps(devices, ensure_ascii=False), encoding="utf-8")
-        tmp.replace(DEVICES_FILE)
-    except Exception:
-        pass  # لو القرص للقراءة فقط يظل الحفظ في الذاكرة
+def save_devices(devices, sync=True):
+    persist_write(
+        "trusted_devices.json",
+        json.dumps(devices, ensure_ascii=False).encode("utf-8"),
+        remote=sync,
+    )
+
+
+def save_logo(kind, uploaded_file):
+    """يحفظ الشعار المرفوع بشكل دائم ويجهّز رسالة النتيجة."""
+    data = enhance_image(uploaded_file)
+    store[kind] = data
+    st.session_state.flash = persist_write(f"logos/{kind}.png", data)
 
 
 @st.cache_resource
@@ -767,8 +913,12 @@ def get_store():
         "users": copy.deepcopy(DEFAULT_USERS),
         "dashboards": copy.deepcopy(DEFAULT_DASHBOARDS),
         "news": copy.deepcopy(DEFAULT_NEWS),
-        "company_logo": "https://raw.githubusercontent.com/ahmedgouda2727/QA-Dashboard-APP/main/Linrco-Egypt.PNG",
-        "qa_logo": "https://raw.githubusercontent.com/ahmedgouda2727/QA-Dashboard-APP/main/QA.png",
+        "company_logo": persist_read("logos/company_logo.png")
+        or bundled_file("Linrco-Egypt.PNG", "Linrco-Egypt.png")
+        or "https://raw.githubusercontent.com/ahmedgouda2727/QA-Dashboard-APP/main/Linrco-Egypt.PNG",
+        "qa_logo": persist_read("logos/qa_logo.png")
+        or bundled_file("QA.png", "QA.PNG")
+        or "https://raw.githubusercontent.com/ahmedgouda2727/QA-Dashboard-APP/main/QA.png",
         "totp_secret": "JBSWY3DPEHPK3PXP",
         "trusted_devices": load_devices(),
     }
@@ -810,7 +960,7 @@ def is_device_trusted(username):
     for d in store["trusted_devices"]:
         if d["user"] == username and hmac.compare_digest(d["token_hash"], h):
             d["last_used"] = time.time()
-            save_devices(store["trusted_devices"])
+            save_devices(store["trusted_devices"], sync=False)
             return True
     return False
 
@@ -1032,7 +1182,7 @@ def render_side_panel(user_info, is_admin):
                 t("new_company_logo"), type=["png", "jpg", "jpeg"], key="hd_c_logo"
             )
             if up_c is not None and st.button(t("save_company_logo"), key="save_c_logo"):
-                store["company_logo"] = enhance_image(up_c)
+                save_logo("company_logo", up_c)
                 st.rerun()
 
             st.markdown('<div class="sb-sep"></div>', unsafe_allow_html=True)
@@ -1041,8 +1191,10 @@ def render_side_panel(user_info, is_admin):
                 t("new_qa_logo"), type=["png", "jpg", "jpeg"], key="hd_qa_logo"
             )
             if up_q is not None and st.button(t("save_qa_logo"), key="save_qa_logo"):
-                store["qa_logo"] = enhance_image(up_q)
+                save_logo("qa_logo", up_q)
                 st.rerun()
+
+            st.caption(t("storage_on") if _gh_conf() else t("storage_off"))
 
     st.markdown('<div class="sb-sep"></div>', unsafe_allow_html=True)
     if st.button(t("logout"), key="logout_btn"):
@@ -1434,6 +1586,11 @@ else:
     can_manage = user_info["role"] in ("admin", "manager")
 
     flush_pending_cookie()
+
+    _flash = st.session_state.pop("flash", None)
+    if _flash:
+        _msg = {"github": "saved_github", "github_failed": "saved_failed"}.get(_flash, "saved_temp")
+        st.toast(t(_msg), icon="✅" if _flash == "github" else "⚠️")
 
     # العمود الأول هو اللوحة الجانبية: يظهر يمين الصفحة في العربي (RTL) وشمالها في الإنجليزي (LTR)
     side_col, main_col = st.columns([1, 3.6], gap="large")
