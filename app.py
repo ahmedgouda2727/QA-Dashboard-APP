@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ──────────────────────────────────────────────────────────────
-# التنسيق (CSS)
+# التنسيق (CSS) المعدل والمضبوط تماماً للـ RTL
 # ──────────────────────────────────────────────────────────────
 CSS = """
 <style>
@@ -37,40 +37,42 @@ CSS = """
     --link: #1F6F8B;
 }
 
-/* إخفاء عناصر ستريمليت الافتراضية (مع الإبقاء على زر الشريط الجانبي) */
+/* إخفاء عناصر ستريمليت الافتراضية */
 #MainMenu, footer,
 [data-testid="stToolbar"],
 [data-testid="stDecoration"] { display: none !important; }
 header[data-testid="stHeader"] { background: transparent; }
 
-/* الاتجاه والخط */
+/* الاتجاه والخط العام */
 .stApp {
     background: var(--bg);
     color: var(--ink);
-    direction: rtl;
-}
-.stApp,
-.stApp :is(p, h1, h2, h3, h4, h5, h6, label, input, textarea, button, li, a, td, th, caption) {
     font-family: 'IBM Plex Sans Arabic', Tahoma, sans-serif !important;
 }
-.stApp :is(p, h1, h2, h3, h4, h5, h6, label, li) { text-align: right; }
-[data-testid="stAppViewContainer"],
-[data-testid="stMain"],
-[data-testid="stSidebar"] { direction: rtl; }
-[data-testid="stCode"], .stApp code { direction: ltr; text-align: left; }
 
-.block-container {
-    max-width: 1180px;
-    padding: 1.5rem 2rem 4rem;
+/* ضبط اتجاه النصوص في الصفحة الرئيسية ليكون من اليمين */
+.main .block-container {
+    direction: rtl !important;
+    text-align: right !important;
 }
-h1, h2, h3 { color: var(--ink); font-weight: 700; }
 
-/* الشريط الجانبي */
+h1, h2, h3, h4, h5, h6, p, label, span, div {
+    font-family: 'IBM Plex Sans Arabic', Tahoma, sans-serif !important;
+}
+
+/* ضبط الشريط الجانبي (Sidebar) ليكون في اليمين ودعمه للغة العربية */
 [data-testid="stSidebar"] {
-    background: var(--surface);
-    border-left: 1px solid var(--line);
+    background: var(--surface) !important;
+    border-left: 1px solid var(--line) !important;
+    direction: rtl !important;
+    text-align: right !important;
 }
-[data-testid="stSidebar"] .stButton > button { width: 100%; }
+
+[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+    direction: rtl !important;
+    text-align: right !important;
+}
+
 .sb-logo {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -80,10 +82,11 @@ h1, h2, h3 { color: var(--ink); font-weight: 700; }
     text-align: center;
 }
 .sb-logo img { max-width: 100%; max-height: 70px; object-fit: contain; }
+
 .user-chip {
     display: flex; align-items: center; gap: .75rem;
     padding: .75rem; background: var(--bg); border-radius: 10px;
-    margin: 1rem 0;
+    margin: 1rem 0; text-align: right;
 }
 .avatar {
     width: 40px; height: 40px; border-radius: 50%;
@@ -99,25 +102,25 @@ h1, h2, h3 { color: var(--ink); font-weight: 700; }
 .login-brand .t { font-size: 1.5rem; font-weight: 700; color: var(--ink); }
 .login-brand .s { color: var(--muted); margin-top: .25rem; }
 
-/* الواجهة الرئيسية */
+/* الواجهة الرئيسية (Hero Section) */
 .hero {
     background: var(--brand-deep); color: #fff;
     border-radius: 14px; padding: 2rem 2.25rem; margin-bottom: 1.5rem;
     display: flex; justify-content: space-between; align-items: flex-end;
-    gap: 1.5rem; flex-wrap: wrap;
+    gap: 1.5rem; flex-wrap: wrap; text-align: right;
 }
 .hero-title { font-size: 1.9rem; font-weight: 700; line-height: 1.4; margin-bottom: .4rem; }
 .hero-sub { color: #EBD3D8; font-size: 1rem; line-height: 1.8; max-width: 48ch; }
 .hero-stats { display: flex; }
-.hero-stat { padding: 0 1.4rem; border-inline-start: 1px solid rgba(255,255,255,.28); }
-.hero-stat:first-child { border-inline-start: none; }
+.hero-stat { padding: 0 1.4rem; border-right: 1px solid rgba(255,255,255,.28); text-align: center; }
+.hero-stat:first-child { border-right: none; }
 .hero-stat b { display: block; font-size: 1.7rem; line-height: 1.15; }
 .hero-stat span { font-size: .85rem; color: #EBD3D8; }
 
 .section-title {
     display: flex; align-items: center; gap: .6rem;
     font-size: 1.2rem; font-weight: 700; color: var(--ink);
-    margin: 2rem 0 1rem;
+    margin: 2rem 0 1rem; text-align: right;
 }
 .section-title::before {
     content: ""; width: 4px; height: 1.15em;
@@ -127,24 +130,23 @@ h1, h2, h3 { color: var(--ink); font-weight: 700; }
 /* الأخبار */
 .news-card {
     background: var(--surface); border: 1px solid var(--line);
-    border-radius: 12px; overflow: hidden; margin-bottom: .6rem;
+    border-radius: 12px; overflow: hidden; margin-bottom: .6rem; text-align: right;
 }
 .news-card img { width: 100%; height: 180px; object-fit: cover; display: block; }
 .news-body { padding: 1rem 1.15rem 1.25rem; }
 .news-body .nt { font-size: 1.05rem; font-weight: 700; line-height: 1.6; margin-bottom: .4rem; }
 .news-body .nc { color: var(--muted); font-size: .95rem; line-height: 1.9; }
 
-/* المشاريع */
+/* المشاريع والتقارير */
 .badge {
     display: inline-block; background: var(--bg); border: 1px solid var(--line);
     border-radius: 999px; padding: .1rem .75rem; font-size: .82rem;
     color: var(--muted); margin-bottom: .7rem;
 }
 
-/* عرض التقرير */
 .viewer-head {
     background: var(--surface); border: 1px solid var(--line);
-    border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1rem 0;
+    border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1rem 0; text-align: right;
 }
 .viewer-head .vt { font-size: 1.4rem; font-weight: 700; margin-bottom: .5rem; }
 .viewer-head .vd { color: var(--muted); line-height: 1.9; margin-bottom: 1rem; }
@@ -156,15 +158,10 @@ h1, h2, h3 { color: var(--ink); font-weight: 700; }
 .btn-link:hover { background: var(--brand-deep); }
 iframe { border: 1px solid var(--line) !important; border-radius: 12px; background: #fff; }
 
-/* عناصر الإدخال والأزرار */
+/* الأزرار والعناصر */
 [data-testid="stForm"] {
     background: var(--surface); border: 1px solid var(--line);
-    border-radius: 12px; padding: 1.5rem;
-}
-[data-baseweb="input"], [data-baseweb="textarea"], [data-baseweb="select"] > div { border-radius: 8px; }
-
-[data-testid="stExpander"] details {
-    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    border-radius: 12px; padding: 1.5rem; text-align: right;
 }
 
 .stButton > button,
@@ -172,36 +169,11 @@ iframe { border: 1px solid var(--line) !important; border-radius: 12px; backgrou
 .stFormSubmitButton > button {
     border-radius: 8px; font-weight: 600; padding: .45rem 1.1rem;
     border: 1px solid var(--line); background: var(--surface); color: var(--ink);
-    transition: border-color .15s, color .15s, background .15s;
+    width: 100%;
 }
-.stButton > button:hover,
-.stDownloadButton > button:hover {
-    border-color: var(--brand); color: var(--brand);
-}
-.stButton button *, .stDownloadButton button *, .stFormSubmitButton button * { color: inherit; }
-
 .stButton > button[kind="primary"],
-.stButton > button[data-testid="stBaseButton-primary"],
 .stFormSubmitButton > button {
-    background: var(--brand); border-color: var(--brand); color: #fff;
-}
-.stButton > button[kind="primary"]:hover,
-.stButton > button[data-testid="stBaseButton-primary"]:hover,
-.stFormSubmitButton > button:hover {
-    background: var(--brand-deep); border-color: var(--brand-deep); color: #fff;
-}
-
-.stTabs [data-baseweb="tab-list"] { gap: .25rem; border-bottom: 1px solid var(--line); }
-.stTabs [data-baseweb="tab"] { font-weight: 600; }
-.stTabs [aria-selected="true"] { color: var(--brand); }
-.stTabs [data-baseweb="tab-highlight"] { background: var(--brand); }
-
-/* الجوال */
-@media (max-width: 768px) {
-    .block-container { padding: 1rem; }
-    .hero { padding: 1.25rem; }
-    .hero-title { font-size: 1.5rem; }
-    .hero-stat { padding: 0 .9rem; }
+    background: var(--brand) !important; border-color: var(--brand) !important; color: #fff !important;
 }
 </style>
 """
@@ -215,7 +187,6 @@ esc = html.escape
 
 
 def enhance_image(image_file):
-    """تحسين الصورة (حدة وألوان) وإرجاعها كـ bytes بصيغة PNG."""
     img = Image.open(image_file)
     if img.mode in ("RGBA", "P"):
         img = img.convert("RGB")
@@ -227,7 +198,6 @@ def enhance_image(image_file):
 
 
 def img_src(img):
-    """يحوّل رابط أو bytes إلى قيمة صالحة لوسم <img>."""
     if isinstance(img, (bytes, bytearray)):
         return "data:image/png;base64," + base64.b64encode(img).decode()
     return esc(str(img), quote=True)
@@ -240,7 +210,6 @@ def safe_url(url):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def resolve_short_url(url):
-    """يتتبع التحويلات للرابط القصير ويرجع الرابط النهائي."""
     try:
         r = requests.get(url, allow_redirects=True, timeout=6, headers={"User-Agent": "Mozilla/5.0"})
         return r.url
@@ -254,7 +223,6 @@ _REPORT_RE = re.compile(
 
 
 def to_embed_url(url):
-    """يحوّل رابط تقرير Looker Studio (عادي أو قصير) إلى رابط التضمين الصالح للـ iframe."""
     url = safe_url(url)
     if not url or "/embed/reporting/" in url:
         return url
@@ -329,8 +297,6 @@ ROLE_FROM_AR = {"أدمن": "admin", "مدير": "manager", "موظف": "user"}
 
 @st.cache_resource
 def get_store():
-    """مخزن مشترك بين كل الجلسات (المستخدمون، المشاريع، الأخبار، الشعارات...).
-    ملاحظة: يبقى في الذاكرة فقط، ويُعاد ضبطه عند إعادة تشغيل التطبيق."""
     return {
         "users": copy.deepcopy(DEFAULT_USERS),
         "dashboards": copy.deepcopy(DEFAULT_DASHBOARDS),
@@ -344,7 +310,6 @@ def get_store():
 
 store = get_store()
 
-# حالة الجلسة الخاصة بكل متصفح
 for _key, _default in {
     "logged_in": False,
     "two_fa_passed": False,
@@ -562,7 +527,6 @@ def render_admin_settings(current_user):
 
 
 def render_manage_panel():
-    """لوحة إدارة المشاريع والأخبار (للأدمن والمدير)."""
     dashboards = store["dashboards"]
 
     with st.expander("لوحة إدارة المشاريع والملفات والأخبار"):
@@ -688,7 +652,6 @@ def render_projects(can_manage):
 
     section_title("المشاريع والتقارير")
 
-    # ── الفلاتر: بحث نصي + تصنيف ──
     categories = sorted({(d.get("category") or "عام") for d in dashboards.values()})
     f1, f2 = st.columns([2, 1])
     with f1:
@@ -715,12 +678,10 @@ def render_projects(can_manage):
         st.info("لا توجد مشاريع مطابقة. غيّر كلمة البحث أو التصنيف.")
         return
 
-    # لو المشروع المختار خرج من نتائج الفلتر نرجع لأول نتيجة
     if st.session_state.get("project_select") not in options:
         st.session_state["project_select"] = options[0]
     selected = st.selectbox("اختر المشروع", options, key="project_select")
 
-    # ── عارض التقرير ──
     data = dashboards[selected]
     url = safe_url(data["url"])
     embed_url = safe_url(data.get("embed_url", "")) or to_embed_url(data["url"])
@@ -757,19 +718,6 @@ def render_projects(can_manage):
     if embed_url:
         st.components.v1.iframe(embed_url, height=820, scrolling=True)
         st.caption("لو التقرير لم يظهر هنا، افتحه من زر «فتح في تبويب جديد».")
-        if can_manage:
-            with st.expander("التقرير لا يظهر؟ خطوات الحل"):
-                st.markdown(
-                    f"""
-                    1. في Looker Studio: **File ← Embed report ← Enable embedding**، ثم انسخ **Embed URL** والصقه في خانة «رابط التضمين» في لوحة الإدارة.
-                    2. الروابط القصيرة `/s/...` لا تعمل داخل iframe، ويجب أن يكون الرابط على شكل `/embed/reporting/...`.
-                    3. تأكد من مشاركة التقرير (Share) مع المستخدمين أو المؤسسة، أو «Anyone with the link».
-                    4. إذا كان التقرير خاصاً بحسابات Google، يجب أن يكون المستخدم مسجّلاً الدخول بحساب Google في نفس المتصفح، وأن لا يمنع المتصفح الكوكيز الخارجية.
-
-                    الرابط المستخدم حالياً للعرض:
-                    """
-                )
-                st.code(embed_url, language="text")
     else:
         st.warning("رابط المشروع غير صالح. يجب أن يبدأ بـ http:// أو https://")
 
@@ -813,7 +761,7 @@ elif not st.session_state.device_trusted and not st.session_state.two_fa_passed:
 
 else:
     current_user = st.session_state.username
-    if current_user not in store["users"]:  # تم حذف المستخدم أثناء الجلسة
+    if current_user not in store["users"]:
         logout()
 
     user_info = store["users"][current_user]
