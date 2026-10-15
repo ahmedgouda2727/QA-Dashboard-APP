@@ -1,8 +1,16 @@
 import base64
 import copy
+import hashlib
+import hmac
 import html
 import io
+import json
+import os
 import re
+import secrets
+import time
+from datetime import datetime
+from pathlib import Path
 
 import pyotp
 import qrcode
@@ -41,7 +49,7 @@ TR = {
         "tfa_code": "رمز التحقق",
         "device_name": "اسم الجهاز أو المتصفح",
         "device_default": "جهاز موثوق جديد",
-        "trust_device": "وثّق هذا الجهاز (لا تطلب الرمز مرة أخرى)",
+        "trust_device": "تذكّر هذا الجهاز لمدة 3 أشهر (لا تطلب الرمز مرة أخرى)",
         "verify": "تحقق ودخول",
         "tfa_error": "الرمز غير صحيح أو انتهت صلاحيته. انتظر ظهور الرمز الجديد وحاول مرة أخرى.",
         "back_login": "رجوع لتسجيل الدخول",
@@ -74,6 +82,10 @@ TR = {
         "user_word": "المستخدم",
         "remove_device": "إزالة الجهاز",
         "no_devices": "لا توجد أجهزة موثوقة مسجلة حالياً.",
+        "dev_trusted_on": "تاريخ التوثيق",
+        "dev_expires": "ينتهي في",
+        "dev_last_used": "آخر استخدام",
+        "remove_all_devices": "إزالة كل الأجهزة الموثوقة",
         "current_users": "المستخدمون الحاليون",
         "col_user": "المستخدم / الإيميل",
         "col_name": "الاسم",
@@ -171,7 +183,7 @@ TR = {
         "tfa_code": "Verification code",
         "device_name": "Device or browser name",
         "device_default": "New trusted device",
-        "trust_device": "Trust this device (don't ask for the code again)",
+        "trust_device": "Remember this device for 3 months (don't ask for the code again)",
         "verify": "Verify and sign in",
         "tfa_error": "The code is incorrect or has expired. Wait for the new code and try again.",
         "back_login": "Back to sign in",
@@ -204,6 +216,10 @@ TR = {
         "user_word": "User",
         "remove_device": "Remove device",
         "no_devices": "No trusted devices are registered yet.",
+        "dev_trusted_on": "Trusted on",
+        "dev_expires": "Expires",
+        "dev_last_used": "Last used",
+        "remove_all_devices": "Remove all trusted devices",
         "current_users": "Current users",
         "col_user": "User / Email",
         "col_name": "Name",
@@ -720,6 +736,29 @@ DEFAULT_USERS = {
 }
 
 
+# ── حفظ الأجهزة الموثوقة في ملف JSON (التوكن نفسه لا يُحفظ، فقط الـ hash الخاص به) ──
+TRUST_DAYS = 90
+DEVICES_FILE = Path(os.environ.get("TRUSTED_DEVICES_FILE", "trusted_devices.json"))
+
+
+def load_devices():
+    try:
+        data = json.loads(DEVICES_FILE.read_text(encoding="utf-8"))
+        now = time.time()
+        return [d for d in data if d.get("expires_at", 0) > now and d.get("token_hash")]
+    except Exception:
+        return []
+
+
+def save_devices(devices):
+    try:
+        tmp = DEVICES_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(devices, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(DEVICES_FILE)
+    except Exception:
+        pass  # لو القرص للقراءة فقط يظل الحفظ في الذاكرة
+
+
 @st.cache_resource
 def get_store():
     """مخزن مشترك بين كل الجلسات (المستخدمون، المشاريع، الأخبار، الشعارات...).
@@ -731,17 +770,121 @@ def get_store():
         "company_logo": "https://raw.githubusercontent.com/ahmedgouda2727/QA-Dashboard-APP/main/Linrco-Egypt.PNG",
         "qa_logo": "https://raw.githubusercontent.com/ahmedgouda2727/QA-Dashboard-APP/main/QA.png",
         "totp_secret": "JBSWY3DPEHPK3PXP",
-        "trusted_devices": [
-            {
-                "name": "موبايل الشركة الرئيسي (مدير النظام)",
-                "name_en": "Main company phone (System Admin)",
-                "user": "admin",
-            }
-        ],
+        "trusted_devices": load_devices(),
     }
 
 
 store = get_store()
+
+
+# ── الأجهزة الموثوقة (كوكي في المتصفح + سجل في السيرفر يستطيع الأدمن حذفه) ──
+def cookie_name(username):
+    return "qa_td_" + hashlib.sha256(username.encode()).hexdigest()[:12]
+
+
+def hash_token(token):
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def purge_expired():
+    devs = store["trusted_devices"]
+    now = time.time()
+    keep = [d for d in devs if d.get("expires_at", 0) > now]
+    if len(keep) != len(devs):
+        devs[:] = keep
+        save_devices(devs)
+
+
+def is_device_trusted(username):
+    """هل هذا المتصفح موثوق لهذا المستخدم (ولم تنتهِ مدة الـ 3 شهور)؟"""
+    if username in st.session_state.trusted_users:
+        return True
+    try:
+        token = st.context.cookies.get(cookie_name(username))
+    except Exception:
+        token = None
+    if not token:
+        return False
+    purge_expired()
+    h = hash_token(token)
+    for d in store["trusted_devices"]:
+        if d["user"] == username and hmac.compare_digest(d["token_hash"], h):
+            d["last_used"] = time.time()
+            save_devices(store["trusted_devices"])
+            return True
+    return False
+
+
+def trust_device(username, device_name):
+    """يسجّل الجهاز كموثوق لمدة 3 شهور، ويجهّز الكوكي ليُكتب في المتصفح."""
+    token = secrets.token_urlsafe(32)
+    now = time.time()
+    store["trusted_devices"].append(
+        {
+            "id": secrets.token_hex(6),
+            "name": device_name,
+            "user": username,
+            "token_hash": hash_token(token),
+            "created_at": now,
+            "expires_at": now + TRUST_DAYS * 86400,
+            "last_used": now,
+        }
+    )
+    save_devices(store["trusted_devices"])
+    st.session_state.trusted_users.add(username)
+    st.session_state.pending_cookie = (cookie_name(username), token)
+
+
+def remove_device(device_id):
+    devs = store["trusted_devices"]
+    devs[:] = [d for d in devs if d["id"] != device_id]
+    save_devices(devs)
+
+
+def remove_user_devices(username):
+    devs = store["trusted_devices"]
+    devs[:] = [d for d in devs if d["user"] != username]
+    save_devices(devs)
+
+
+def flush_pending_cookie():
+    """يكتب كوكي الجهاز الموثوق في المتصفح (مرة واحدة بعد التحقق الناجح)."""
+    pending = st.session_state.pop("pending_cookie", None)
+    if not pending:
+        return
+    name, value = pending
+    max_age = TRUST_DAYS * 86400
+    st.components.v1.html(
+        f"""<script>
+        (function () {{
+            var p = window.parent;
+            var secure = p.location.protocol === 'https:' ? '; Secure' : '';
+            p.document.cookie = "{name}={value}; max-age={max_age}; path=/; SameSite=Lax" + secure;
+        }})();
+        </script>""",
+        height=0,
+    )
+
+
+def guess_device():
+    """اسم افتراضي للجهاز من نوع المتصفح والنظام."""
+    try:
+        ua = st.context.headers.get("User-Agent", "")
+    except Exception:
+        ua = ""
+    browser = next(
+        (n for k, n in [("Edg/", "Edge"), ("OPR/", "Opera"), ("Firefox", "Firefox"), ("Chrome", "Chrome"), ("Safari", "Safari")] if k in ua),
+        "Browser",
+    )
+    os_name = next(
+        (n for k, n in [("Windows", "Windows"), ("Android", "Android"), ("iPhone", "iPhone"), ("iPad", "iPad"), ("Mac OS", "macOS"), ("Linux", "Linux")] if k in ua),
+        "",
+    )
+    return f"{browser} / {os_name}" if os_name else browser
+
+
+def fmt_date(ts):
+    return datetime.fromtimestamp(ts).strftime("%Y-%m-%d") if ts else "—"
 
 
 def project_name(key):
@@ -753,7 +896,7 @@ def project_name(key):
 for _key, _default in {
     "logged_in": False,
     "two_fa_passed": False,
-    "device_trusted": False,
+    "trusted_users": set(),
     "username": "",
     "show_admin_settings": False,
     "selected_project": None,
@@ -801,7 +944,7 @@ def render_login():
             if clean in users and users[clean]["password"] == password_input:
                 st.session_state.logged_in = True
                 st.session_state.username = clean
-                if users[clean]["role"] == "admin":
+                if users[clean]["role"] == "admin" or is_device_trusted(clean):
                     st.session_state.two_fa_passed = True
                 st.rerun()
             else:
@@ -815,8 +958,8 @@ def render_2fa():
         login_brand(t("tfa_title"), t("tfa_sub"))
         with st.form("2fa_form"):
             totp_code = st.text_input(t("tfa_code"), max_chars=6)
-            device_name = st.text_input(t("device_name"), value=t("device_default"))
-            trust = st.checkbox(t("trust_device"))
+            device_name = st.text_input(t("device_name"), value=guess_device())
+            trust = st.checkbox(t("trust_device"), value=True)
             verify = st.form_submit_button(t("verify"), type="primary")
 
         if verify:
@@ -824,13 +967,7 @@ def render_2fa():
             if totp.verify(totp_code, valid_window=2):
                 st.session_state.two_fa_passed = True
                 if trust:
-                    st.session_state.device_trusted = True
-                    entry = {
-                        "name": f"{device_name} ({st.session_state.username})",
-                        "user": st.session_state.username,
-                    }
-                    if entry not in store["trusted_devices"]:
-                        store["trusted_devices"].append(entry)
+                    trust_device(st.session_state.username, device_name.strip() or guess_device())
                 st.rerun()
             else:
                 st.error(t("tfa_error"))
@@ -930,16 +1067,29 @@ def render_admin_settings(current_user):
         st.code(store["totp_secret"], language="text")
 
         section_title(t("devices_title"))
+        purge_expired()
         devices = store["trusted_devices"]
         if devices:
-            for i, dev in enumerate(devices):
-                c1, c2 = st.columns([4, 1])
+            for dev in list(devices):
+                uname = dev["user"]
+                shown = loc(store["users"].get(uname, {}), "name") or uname
+                c1, c2 = st.columns([4, 1], vertical_alignment="center")
                 with c1:
-                    st.write(f"**{loc(dev, 'name')}**  ·  {t('user_word')}: {dev['user']}")
+                    st.markdown(
+                        f"**{dev['name']}**  \n"
+                        f"{t('user_word')}: {shown} ({uname}) · "
+                        f"{t('dev_trusted_on')}: {fmt_date(dev.get('created_at'))} · "
+                        f"{t('dev_expires')}: {fmt_date(dev.get('expires_at'))} · "
+                        f"{t('dev_last_used')}: {fmt_date(dev.get('last_used'))}"
+                    )
                 with c2:
-                    if st.button(t("remove_device"), key=f"del_dev_{i}"):
-                        devices.pop(i)
+                    if st.button(t("remove_device"), key=f"del_dev_{dev['id']}"):
+                        remove_device(dev["id"])
                         st.rerun()
+            if st.button(t("remove_all_devices"), key="del_all_devs"):
+                devices.clear()
+                save_devices(devices)
+                st.rerun()
         else:
             st.info(t("no_devices"))
 
@@ -990,6 +1140,8 @@ def render_admin_settings(current_user):
         )
         if st.button(t("delete_selected")) and target in store["users"]:
             del store["users"][target]
+            remove_user_devices(target)
+            st.session_state.trusted_users.discard(target)
             st.rerun()
 
 
@@ -1269,7 +1421,7 @@ def render_portal(user_info, can_manage):
 if not st.session_state.logged_in:
     render_login()
 
-elif not st.session_state.device_trusted and not st.session_state.two_fa_passed:
+elif not st.session_state.two_fa_passed:
     render_2fa()
 
 else:
@@ -1280,6 +1432,8 @@ else:
     user_info = store["users"][current_user]
     is_admin = user_info["role"] == "admin"
     can_manage = user_info["role"] in ("admin", "manager")
+
+    flush_pending_cookie()
 
     # العمود الأول هو اللوحة الجانبية: يظهر يمين الصفحة في العربي (RTL) وشمالها في الإنجليزي (LTR)
     side_col, main_col = st.columns([1, 3.6], gap="large")
