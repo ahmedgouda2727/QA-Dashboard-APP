@@ -435,6 +435,11 @@ def render_2fa():
 
 def render_sidebar(user_info, is_admin):
     with st.sidebar:
+        st.markdown("### القائمة الرئيسية")
+        if st.button("الرئيسية", key="sidebar_home", use_container_width=True):
+            st.session_state.show_admin_settings = False
+            st.rerun()
+
         st.markdown(
             f'<div class="sb-logo"><img src="{img_src(store["company_logo"])}" alt="ليناركو"></div>',
             unsafe_allow_html=True,
