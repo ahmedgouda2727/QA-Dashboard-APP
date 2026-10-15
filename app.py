@@ -66,7 +66,7 @@ from sqlalchemy import (Boolean, Date, DateTime, Float, ForeignKey, Integer,
                         LargeBinary, String, Text, UniqueConstraint, create_engine,
                         event, func, or_, select, text)
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import (DeclarativeBase, Mapped, Session, mapped_column)
+from sqlalchemy.orm import (DeclarativeBase, Mapped, Session, mapped_column, relationship)
 
 try:
     import pyotp
