@@ -17,7 +17,7 @@ st.set_page_config(
     page_title="بوابة الجودة - ليناركو",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # ──────────────────────────────────────────────────────────────
@@ -47,7 +47,12 @@ CSS = """
 [data-testid="stStatusWidget"] { display: none !important; }
 header[data-testid="stHeader"] { background: transparent; }
 
-/* التأكد من ظهور أزرار فتح/إغلاق الشريط الجانبي */
+/* لا نستخدم الشريط الجانبي: كل شيء في الهيدر العلوي */
+[data-testid="stSidebar"],
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="stExpandSidebarButton"] { display: none !important; }
+
+/* (قديم) */
 [data-testid="stToolbar"],
 [data-testid="stExpandSidebarButton"],
 [data-testid="stSidebarCollapsedControl"],
@@ -76,7 +81,7 @@ header[data-testid="stHeader"] { background: transparent; }
 
 .block-container {
     max-width: 1180px;
-    padding: 1.5rem 2rem 4rem;
+    padding: 2.5rem 2rem 4rem;
 }
 h1, h2, h3 { color: var(--ink); font-weight: 700; }
 
@@ -484,43 +489,52 @@ def render_2fa():
             logout()
 
 
-def render_sidebar(user_info, is_admin):
-    with st.sidebar:
-        # الشعارات
+def render_header(user_info, is_admin):
+    """هيدر ثابت أعلى الصفحة: لوجو الشركة + لوجو القسم + أهلاً بك واسم المستخدم + تسجيل الخروج.
+    أدوات الأدمن (التنقل للإعدادات وتغيير الشعارات) تظهر للأدمن فقط."""
+    c_co, c_qa, c_user, c_out = st.columns([1.2, 1.2, 3, 1.1], vertical_alignment="center")
+
+    with c_co:
         st.markdown(
-            f'<div class="sb-logo">{logo_html(store["company_logo"], "ليناركو")}</div>'
+            f'<div class="sb-logo">{logo_html(store["company_logo"], "ليناركو")}</div>',
+            unsafe_allow_html=True,
+        )
+    with c_qa:
+        st.markdown(
             f'<div class="sb-logo">{logo_html(store["qa_logo"], "قسم الجودة")}</div>',
             unsafe_allow_html=True,
         )
-
-        # بطاقة المستخدم
-        initial = esc(user_info["name"][:1])
+    with c_user:
         st.markdown(
             f"""
             <div class="user-chip">
-                <div class="avatar">{initial}</div>
+                <div class="avatar">{esc(user_info["name"][:1])}</div>
                 <div>
-                    <div class="name">{esc(user_info['name'])}</div>
-                    <div class="role">{ROLE_LABELS[user_info['role']]}</div>
+                    <div class="name">أهلاً بك، {esc(user_info["name"])}</div>
+                    <div class="role">{ROLE_LABELS[user_info["role"]]}</div>
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
+    with c_out:
+        if st.button("🚪 تسجيل الخروج", key="logout_btn"):
+            logout()
 
-        # التنقل
-        st.markdown('<div class="sb-label">القائمة</div>', unsafe_allow_html=True)
+    # ── أدوات الأدمن فقط ──
+    if is_admin:
         on_settings = st.session_state.show_admin_settings
+        a1, a2, a3, _ = st.columns([1.2, 2, 1.6, 2.4])
 
-        if st.button(
-            "🏠 الرئيسية",
-            key="nav_home",
-            type="secondary" if on_settings else "primary",
-        ):
-            st.session_state.show_admin_settings = False
-            st.rerun()
-
-        if is_admin:
+        with a1:
+            if st.button(
+                "🏠 الرئيسية",
+                key="nav_home",
+                type="secondary" if on_settings else "primary",
+            ):
+                st.session_state.show_admin_settings = False
+                st.rerun()
+        with a2:
             if st.button(
                 "⚙️ إعدادات النظام والأمان",
                 key="nav_admin",
@@ -528,12 +542,10 @@ def render_sidebar(user_info, is_admin):
             ):
                 st.session_state.show_admin_settings = True
                 st.rerun()
-
-            # تغيير الشعارات (مجمّعة في مكان واحد)
-            st.markdown('<div class="sb-label">أدوات الأدمن</div>', unsafe_allow_html=True)
-            with st.expander("🖼️ تغيير الشعارات"):
+        with a3:
+            with st.popover("🖼️ تغيير الشعارات"):
                 up_c = st.file_uploader(
-                    "شعار ليناركو الجديد", type=["png", "jpg", "jpeg"], key="sb_c_logo"
+                    "شعار ليناركو الجديد", type=["png", "jpg", "jpeg"], key="hd_c_logo"
                 )
                 if up_c is not None and st.button("حفظ شعار الشركة", key="save_c_logo"):
                     store["company_logo"] = enhance_image(up_c)
@@ -542,41 +554,13 @@ def render_sidebar(user_info, is_admin):
                 st.markdown('<div class="sb-sep"></div>', unsafe_allow_html=True)
 
                 up_q = st.file_uploader(
-                    "شعار الجودة الجديد", type=["png", "jpg", "jpeg"], key="sb_qa_logo"
+                    "شعار قسم الجودة الجديد", type=["png", "jpg", "jpeg"], key="hd_qa_logo"
                 )
                 if up_q is not None and st.button("حفظ شعار الجودة", key="save_qa_logo"):
                     store["qa_logo"] = enhance_image(up_q)
                     st.rerun()
 
-        st.markdown('<div class="sb-sep"></div>', unsafe_allow_html=True)
-        if st.button("🚪 تسجيل الخروج", key="logout_btn"):
-            logout()
-
-
-def render_topbar(user_info, is_admin):
-    """شريط تنقل أعلى الصفحة (نفس خيارات الشريط الجانبي) يظل ظاهراً حتى لو اتقفل السايد بار."""
-    on_settings = st.session_state.show_admin_settings
-    widths = [3, 1.2, 1.6, 1.2] if is_admin else [4, 1.2, 1.2]
-    cols = st.columns(widths)
-
-    with cols[0]:
-        st.markdown(
-            f"**{esc(user_info['name'])}** · {ROLE_LABELS[user_info['role']]}"
-        )
-    with cols[1]:
-        if st.button("🏠 الرئيسية", key="top_home", type="secondary" if on_settings else "primary"):
-            st.session_state.show_admin_settings = False
-            st.rerun()
-    idx = 2
-    if is_admin:
-        with cols[idx]:
-            if st.button("⚙️ الإعدادات", key="top_admin", type="primary" if on_settings else "secondary"):
-                st.session_state.show_admin_settings = True
-                st.rerun()
-        idx += 1
-    with cols[idx]:
-        if st.button("🚪 خروج", key="top_logout"):
-            logout()
+    st.markdown('<div class="sb-sep"></div>', unsafe_allow_html=True)
 
 
 def render_admin_settings(current_user):
@@ -919,8 +903,7 @@ else:
     is_admin = user_info["role"] == "admin"
     can_manage = user_info["role"] in ("admin", "manager")
 
-    render_sidebar(user_info, is_admin)
-    render_topbar(user_info, is_admin)
+    render_header(user_info, is_admin)
 
     if is_admin and st.session_state.show_admin_settings:
         render_admin_settings(current_user)
