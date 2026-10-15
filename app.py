@@ -44,20 +44,22 @@ CSS = """
 [data-testid="stDecoration"] { display: none !important; }
 header[data-testid="stHeader"] { background: transparent; }
 
-/* الاتجاه والخط */
+/* الاتجاه والخط
+   مهم: الحاوية الخارجية تبقى LTR حتى لا يتداخل الشريط الجانبي مع المحتوى،
+   والاتجاه RTL يُطبَّق على المحتوى نفسه وعلى محتوى الشريط الجانبي. */
 .stApp {
     background: var(--bg);
     color: var(--ink);
-    direction: rtl;
 }
+[data-testid="stAppViewContainer"] { direction: ltr; }
+[data-testid="stMain"],
+[data-testid="stSidebar"] { direction: rtl; }
+
 .stApp,
-.stApp :is(p, h1, h2, h3, h4, h5, h6, label, input, textarea, button, li, a, td, th, caption) {
+.stApp :is(p, h1, h2, h3, h4, h5, h6, label, input, textarea, button, li, a, td, th, caption, summary) {
     font-family: 'IBM Plex Sans Arabic', Tahoma, sans-serif !important;
 }
 .stApp :is(p, h1, h2, h3, h4, h5, h6, label, li) { text-align: right; }
-[data-testid="stAppViewContainer"],
-[data-testid="stMain"],
-[data-testid="stSidebar"] { direction: rtl; }
 [data-testid="stCode"], .stApp code { direction: ltr; text-align: left; }
 
 .block-container {
@@ -66,44 +68,38 @@ header[data-testid="stHeader"] { background: transparent; }
 }
 h1, h2, h3 { color: var(--ink); font-weight: 700; }
 
-/* الشريط الجانبي — فرض ظهور المحتوى */
+/* الشريط الجانبي */
 [data-testid="stSidebar"] {
-    background: #FFFFFF !important;
-    border-left: 1px solid #E3E6EB !important;
-    min-width: 280px !important;
+    background: var(--surface);
+    border-right: 1px solid var(--line);
 }
-[data-testid="stSidebar"] [data-testid="stSidebarContent"],
-[data-testid="stSidebar"] [data-testid="stVerticalBlock"],
-[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
-[data-testid="stSidebar"] [data-testid="stImage"],
-[data-testid="stSidebar"] .stButton,
-[data-testid="stSidebar"] details {
-    visibility: visible !important;
-    opacity: 1 !important;
-}
-[data-testid="stSidebar"] p,
-[data-testid="stSidebar"] h1,
-[data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3,
-[data-testid="stSidebar"] label,
-[data-testid="stSidebar"] span,
-[data-testid="stSidebar"] div {
-    color: #1D2433;
-}
-[data-testid="stSidebar"] .stButton > button { width: 100%; }
+[data-testid="stSidebar"] [data-testid="stSidebarContent"] { padding: 1rem .9rem; }
+[data-testid="stSidebar"] .stButton { margin-bottom: .35rem; }
+[data-testid="stSidebar"] .stButton > button { width: 100%; justify-content: center; }
+[data-testid="stSidebar"] [data-testid="stExpander"] summary { text-align: right; }
+[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] { flex-wrap: wrap; gap: .5rem; }
+
 .sb-logo {
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 10px;
     padding: .75rem;
-    margin-bottom: .75rem;
+    margin-bottom: .6rem;
     text-align: center;
 }
-.sb-logo img { max-width: 100%; max-height: 70px; object-fit: contain; }
+.sb-logo img { max-width: 100%; max-height: 64px; object-fit: contain; }
+.logo-fallback {
+    font-weight: 700; color: var(--brand); padding: .5rem 0; font-size: 1.05rem;
+}
+.sb-label {
+    font-size: .8rem; font-weight: 600; color: var(--muted);
+    margin: 1rem .25rem .5rem;
+}
+.sb-sep { height: 1px; background: var(--line); margin: 1rem 0; }
 .user-chip {
     display: flex; align-items: center; gap: .75rem;
     padding: .75rem; background: var(--bg); border-radius: 10px;
-    margin: 1rem 0;
+    margin: .9rem 0 .25rem;
 }
 .avatar {
     width: 40px; height: 40px; border-radius: 50%;
@@ -253,6 +249,30 @@ def img_src(img):
     return esc(str(img), quote=True)
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_data_uri(url):
+    """يحمّل الصورة من الرابط على السيرفر ويرجعها كـ data URI (أو None لو فشل التحميل).
+    هذا يتجنب مشكلة الصور المكسورة عند حظر المتصفح للرابط الخارجي."""
+    try:
+        r = requests.get(url, timeout=8, headers={"User-Agent": "Mozilla/5.0"})
+        ctype = r.headers.get("content-type", "").split(";")[0].strip().lower()
+        if r.ok and ctype.startswith("image/"):
+            return f"data:{ctype};base64," + base64.b64encode(r.content).decode()
+    except Exception:
+        pass
+    return None
+
+
+def logo_html(src, alt):
+    """وسم صورة للشعار، ولو تعذّر تحميلها يظهر اسم الشعار كنص بدل الأيقونة المكسورة."""
+    if isinstance(src, (bytes, bytearray)):
+        return f'<img src="{img_src(src)}" alt="{esc(alt)}">'
+    uri = fetch_data_uri(str(src)) if src else None
+    if uri:
+        return f'<img src="{uri}" alt="{esc(alt)}">'
+    return f'<div class="logo-fallback">{esc(alt)}</div>'
+
+
 def safe_url(url):
     url = (url or "").strip()
     return url if url.startswith(("http://", "https://")) else ""
@@ -349,6 +369,8 @@ ROLE_FROM_AR = {"أدمن": "admin", "مدير": "manager", "موظف": "user"}
 
 @st.cache_resource
 def get_store():
+    """مخزن مشترك بين كل الجلسات (المستخدمون، المشاريع، الأخبار، الشعارات...).
+    ملاحظة: يبقى في الذاكرة فقط، ويُعاد ضبطه عند إعادة تشغيل التطبيق."""
     return {
         "users": copy.deepcopy(DEFAULT_USERS),
         "dashboards": copy.deepcopy(DEFAULT_DASHBOARDS),
@@ -362,6 +384,7 @@ def get_store():
 
 store = get_store()
 
+# حالة الجلسة الخاصة بكل متصفح
 for _key, _default in {
     "logged_in": False,
     "two_fa_passed": False,
@@ -388,7 +411,7 @@ def login_brand(title, subtitle):
     st.markdown(
         f"""
         <div class="login-brand">
-            <img src="{img_src(store['company_logo'])}" alt="ليناركو">
+            {logo_html(store['company_logo'], 'ليناركو')}
             <div class="t">{esc(title)}</div>
             <div class="s">{esc(subtitle)}</div>
         </div>
@@ -450,53 +473,71 @@ def render_2fa():
 
 
 def render_sidebar(user_info, is_admin):
-    """عرض الشريط الجانبي ومحتوياته بشكل مباشر وواضح."""
     with st.sidebar:
-        st.markdown("## بوابة الجودة")
-        st.caption("ليناركو | Quality Assurance")
-        st.divider()
+        # الشعارات
+        st.markdown(
+            f'<div class="sb-logo">{logo_html(store["company_logo"], "ليناركو")}</div>'
+            f'<div class="sb-logo">{logo_html(store["qa_logo"], "قسم الجودة")}</div>',
+            unsafe_allow_html=True,
+        )
 
-        for logo, alt in ((store["company_logo"], "شعار ليناركو"), (store["qa_logo"], "شعار قسم الجودة")):
-            try:
-                if isinstance(logo, (bytes, bytearray)):
-                    st.image(logo, use_container_width=True, caption=alt)
-                elif logo:
-                    st.markdown(
-                        f'<div class="sb-logo"><img src="{img_src(logo)}" alt="{esc(alt)}"></div>',
-                        unsafe_allow_html=True,
-                    )
-            except Exception:
-                st.caption(alt)
+        # بطاقة المستخدم
+        initial = esc(user_info["name"][:1])
+        st.markdown(
+            f"""
+            <div class="user-chip">
+                <div class="avatar">{initial}</div>
+                <div>
+                    <div class="name">{esc(user_info['name'])}</div>
+                    <div class="role">{ROLE_LABELS[user_info['role']]}</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-        if is_admin:
-            with st.expander("تغيير شعار الشركة"):
-                up = st.file_uploader("شعار ليناركو الجديد", type=["png", "jpg", "jpeg"], key="sb_c_logo")
-                if up is not None and st.button("حفظ شعار الشركة", key="save_c_logo", use_container_width=True):
-                    store["company_logo"] = enhance_image(up)
-                    st.rerun()
+        # التنقل
+        st.markdown('<div class="sb-label">القائمة</div>', unsafe_allow_html=True)
+        on_settings = st.session_state.show_admin_settings
 
-            with st.expander("تغيير شعار قسم الجودة"):
-                up = st.file_uploader("شعار الجودة الجديد", type=["png", "jpg", "jpeg"], key="sb_qa_logo")
-                if up is not None and st.button("حفظ شعار قسم الجودة", key="save_qa_logo", use_container_width=True):
-                    store["qa_logo"] = enhance_image(up)
-                    st.rerun()
-
-        st.divider()
-        st.markdown(f"### أهلاً بك، {esc(user_info['name'])}")
-        st.write(f"**الصلاحية:** {ROLE_LABELS[user_info['role']]}")
-        st.divider()
-
-        if st.button("🏠 الرئيسية", key="sidebar_home", use_container_width=True):
+        if st.button(
+            "🏠 الرئيسية",
+            key="nav_home",
+            type="secondary" if on_settings else "primary",
+        ):
             st.session_state.show_admin_settings = False
             st.rerun()
 
         if is_admin:
-            label = "↩ العودة للرئيسية" if st.session_state.show_admin_settings else "⚙️ إعدادات النظام والأمان"
-            if st.button(label, key="toggle_admin", use_container_width=True):
-                st.session_state.show_admin_settings = not st.session_state.show_admin_settings
+            if st.button(
+                "⚙️ إعدادات النظام والأمان",
+                key="nav_admin",
+                type="primary" if on_settings else "secondary",
+            ):
+                st.session_state.show_admin_settings = True
                 st.rerun()
 
-        if st.button("🚪 تسجيل الخروج", key="logout_btn", use_container_width=True):
+            # تغيير الشعارات (مجمّعة في مكان واحد)
+            st.markdown('<div class="sb-label">أدوات الأدمن</div>', unsafe_allow_html=True)
+            with st.expander("🖼️ تغيير الشعارات"):
+                up_c = st.file_uploader(
+                    "شعار ليناركو الجديد", type=["png", "jpg", "jpeg"], key="sb_c_logo"
+                )
+                if up_c is not None and st.button("حفظ شعار الشركة", key="save_c_logo"):
+                    store["company_logo"] = enhance_image(up_c)
+                    st.rerun()
+
+                st.markdown('<div class="sb-sep"></div>', unsafe_allow_html=True)
+
+                up_q = st.file_uploader(
+                    "شعار الجودة الجديد", type=["png", "jpg", "jpeg"], key="sb_qa_logo"
+                )
+                if up_q is not None and st.button("حفظ شعار الجودة", key="save_qa_logo"):
+                    store["qa_logo"] = enhance_image(up_q)
+                    st.rerun()
+
+        st.markdown('<div class="sb-sep"></div>', unsafe_allow_html=True)
+        if st.button("🚪 تسجيل الخروج", key="logout_btn"):
             logout()
 
 
@@ -582,6 +623,7 @@ def render_admin_settings(current_user):
 
 
 def render_manage_panel():
+    """لوحة إدارة المشاريع والأخبار (للأدمن والمدير)."""
     dashboards = store["dashboards"]
 
     with st.expander("لوحة إدارة المشاريع والملفات والأخبار"):
@@ -707,6 +749,7 @@ def render_projects(can_manage):
 
     section_title("المشاريع والتقارير")
 
+    # ── الفلاتر: بحث نصي + تصنيف ──
     categories = sorted({(d.get("category") or "عام") for d in dashboards.values()})
     f1, f2 = st.columns([2, 1])
     with f1:
@@ -733,10 +776,12 @@ def render_projects(can_manage):
         st.info("لا توجد مشاريع مطابقة. غيّر كلمة البحث أو التصنيف.")
         return
 
+    # لو المشروع المختار خرج من نتائج الفلتر نرجع لأول نتيجة
     if st.session_state.get("project_select") not in options:
         st.session_state["project_select"] = options[0]
     selected = st.selectbox("اختر المشروع", options, key="project_select")
 
+    # ── عارض التقرير ──
     data = dashboards[selected]
     url = safe_url(data["url"])
     embed_url = safe_url(data.get("embed_url", "")) or to_embed_url(data["url"])
@@ -776,7 +821,7 @@ def render_projects(can_manage):
         if can_manage:
             with st.expander("التقرير لا يظهر؟ خطوات الحل"):
                 st.markdown(
-                    f"""
+                    """
                     1. في Looker Studio: **File ← Embed report ← Enable embedding**، ثم انسخ **Embed URL** والصقه في خانة «رابط التضمين» في لوحة الإدارة.
                     2. الروابط القصيرة `/s/...` لا تعمل داخل iframe، ويجب أن يكون الرابط على شكل `/embed/reporting/...`.
                     3. تأكد من مشاركة التقرير (Share) مع المستخدمين أو المؤسسة، أو «Anyone with the link».
@@ -829,7 +874,7 @@ elif not st.session_state.device_trusted and not st.session_state.two_fa_passed:
 
 else:
     current_user = st.session_state.username
-    if current_user not in store["users"]:
+    if current_user not in store["users"]:  # تم حذف المستخدم أثناء الجلسة
         logout()
 
     user_info = store["users"][current_user]
