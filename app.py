@@ -21,7 +21,7 @@ st.set_page_config(
 )
 
 # ──────────────────────────────────────────────────────────────
-# التنسيق (CSS)
+# التنسيق (CSS) - إصلاح تداخل وعرض الشريط الجانبي
 # ──────────────────────────────────────────────────────────────
 CSS = """
 <style>
@@ -38,13 +38,13 @@ CSS = """
     --link: #1F6F8B;
 }
 
-/* إخفاء عناصر ستريمليت الافتراضية (مع الإبقاء على زر الشريط الجانبي) */
+/* إخفاء عناصر ستريمليت الافتراضية */
 #MainMenu, footer,
 [data-testid="stToolbar"],
 [data-testid="stDecoration"] { display: none !important; }
 header[data-testid="stHeader"] { background: transparent; }
 
-/* الاتجاه والخط */
+/* الاتجاه والخط العام */
 .stApp {
     background: var(--bg);
     color: var(--ink);
@@ -55,32 +55,30 @@ header[data-testid="stHeader"] { background: transparent; }
     font-family: 'IBM Plex Sans Arabic', Tahoma, sans-serif !important;
 }
 .stApp :is(p, h1, h2, h3, h4, h5, h6, label, li) { text-align: right; }
-[data-testid="stAppViewContainer"],
-[data-testid="stMain"],
-[data-testid="stSidebar"] { direction: rtl; }
+
+[data-testid="stAppViewContainer"] { direction: rtl; }
+[data-testid="stMain"] { direction: rtl; }
 [data-testid="stCode"], .stApp code { direction: ltr; text-align: left; }
 
+/* ضبط الحاوية الرئيسية ومسافاتها */
 .block-container {
-    max-width: 1180px;
+    max-width: 1200px;
     padding: 1.5rem 2rem 4rem;
 }
 h1, h2, h3 { color: var(--ink); font-weight: 700; }
 
-/* الشريط الجانبي — فرض ظهور المحتوى */
+/* ── إصلاح الشريط الجانبي (Sidebar) ── */
 [data-testid="stSidebar"] {
     background: #FFFFFF !important;
     border-left: 1px solid #E3E6EB !important;
-    min-width: 280px !important;
+    width: 280px !important;
+    direction: rtl !important;
 }
-[data-testid="stSidebar"] [data-testid="stSidebarContent"],
-[data-testid="stSidebar"] [data-testid="stVerticalBlock"],
-[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
-[data-testid="stSidebar"] [data-testid="stImage"],
-[data-testid="stSidebar"] .stButton,
-[data-testid="stSidebar"] details {
-    visibility: visible !important;
-    opacity: 1 !important;
+
+[data-testid="stSidebar"] > div:first-child {
+    width: 280px !important;
 }
+
 [data-testid="stSidebar"] p,
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
@@ -90,28 +88,18 @@ h1, h2, h3 { color: var(--ink); font-weight: 700; }
 [data-testid="stSidebar"] div {
     color: #1D2433;
 }
+
 [data-testid="stSidebar"] .stButton > button { width: 100%; }
+
 .sb-logo {
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 10px;
-    padding: .75rem;
-    margin-bottom: .75rem;
+    padding: .5rem;
+    margin-bottom: .5rem;
     text-align: center;
 }
-.sb-logo img { max-width: 100%; max-height: 70px; object-fit: contain; }
-.user-chip {
-    display: flex; align-items: center; gap: .75rem;
-    padding: .75rem; background: var(--bg); border-radius: 10px;
-    margin: 1rem 0;
-}
-.avatar {
-    width: 40px; height: 40px; border-radius: 50%;
-    background: var(--brand); color: #fff; font-weight: 700;
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-.user-chip .name { font-weight: 600; line-height: 1.3; }
-.user-chip .role { font-size: .82rem; color: var(--muted); }
+.sb-logo img { max-width: 100%; max-height: 60px; object-fit: contain; }
 
 /* شاشة الدخول */
 .login-brand { text-align: center; margin: 2.5rem 0 1.25rem; }
@@ -349,8 +337,6 @@ ROLE_FROM_AR = {"أدمن": "admin", "مدير": "manager", "موظف": "user"}
 
 @st.cache_resource
 def get_store():
-    """مخزن مشترك بين كل الجلسات (المستخدمون، المشاريع، الأخبار، الشعارات...).
-    ملاحظة: يبقى في الذاكرة فقط، ويُعاد ضبطه عند إعادة تشغيل التطبيق."""
     return {
         "users": copy.deepcopy(DEFAULT_USERS),
         "dashboards": copy.deepcopy(DEFAULT_DASHBOARDS),
@@ -453,24 +439,17 @@ def render_2fa():
 
 
 def render_sidebar(user_info, is_admin):
-    """عرض الشريط الجانبي ومحتوياته بشكل مباشر وواضح."""
+    """عرض الشريط الجانبي ومحتوياته بشكل منظم ورأسي."""
     with st.sidebar:
         st.markdown("## بوابة الجودة")
         st.caption("ليناركو | Quality Assurance")
         st.divider()
 
-        # شعارات الشركة والجودة
-        for logo, alt in ((store["company_logo"], "شعار ليناركو"), (store["qa_logo"], "شعار قسم الجودة")):
-            try:
-                if isinstance(logo, (bytes, bytearray)):
-                    st.image(logo, use_container_width=True, caption=alt)
-                elif logo:
-                    st.markdown(
-                        f'<div class="sb-logo"><img src="{img_src(logo)}" alt="{esc(alt)}"></div>',
-                        unsafe_allow_html=True,
-                    )
-            except Exception:
-                st.caption(alt)
+        # عرض الشعارات كصور آمنة
+        if store["company_logo"]:
+            st.image(store["company_logo"], use_container_width=True)
+        if store["qa_logo"]:
+            st.image(store["qa_logo"], use_container_width=True)
 
         if is_admin:
             with st.expander("تغيير شعار الشركة"):
@@ -481,7 +460,7 @@ def render_sidebar(user_info, is_admin):
 
             with st.expander("تغيير شعار قسم الجودة"):
                 up = st.file_uploader("شعار الجودة الجديد", type=["png", "jpg", "jpeg"], key="sb_qa_logo")
-                if up is not None and st.button("حفظ شعار الجودة", key="save_qa_logo", use_container_width=True):
+                if up is not None and st.button("حفظ شعار قسم الجودة", key="save_qa_logo", use_container_width=True):
                     store["qa_logo"] = enhance_image(up)
                     st.rerun()
 
@@ -712,7 +691,6 @@ def render_projects(can_manage):
 
     section_title("المشاريع والتقارير")
 
-    # ── الفلاتر: بحث نصي + تصنيف ──
     categories = sorted({(d.get("category") or "عام") for d in dashboards.values()})
     f1, f2 = st.columns([2, 1])
     with f1:
@@ -739,12 +717,10 @@ def render_projects(can_manage):
         st.info("لا توجد مشاريع مطابقة. غيّر كلمة البحث أو التصنيف.")
         return
 
-    # لو المشروع المختار خرج من نتائج الفلتر نرجع لأول نتيجة
     if st.session_state.get("project_select") not in options:
         st.session_state["project_select"] = options[0]
     selected = st.selectbox("اختر المشروع", options, key="project_select")
 
-    # ── عارض التقرير ──
     data = dashboards[selected]
     url = safe_url(data["url"])
     embed_url = safe_url(data.get("embed_url", "")) or to_embed_url(data["url"])
@@ -837,7 +813,7 @@ elif not st.session_state.device_trusted and not st.session_state.two_fa_passed:
 
 else:
     current_user = st.session_state.username
-    if current_user not in store["users"]:  # تم حذف المستخدم أثناء الجلسة
+    if current_user not in store["users"]:
         logout()
 
     user_info = store["users"][current_user]
