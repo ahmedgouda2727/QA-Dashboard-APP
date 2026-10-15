@@ -40,9 +40,21 @@ CSS = """
 
 /* إخفاء عناصر ستريمليت الافتراضية (مع الإبقاء على زر الشريط الجانبي) */
 #MainMenu, footer,
-[data-testid="stToolbar"],
-[data-testid="stDecoration"] { display: none !important; }
+[data-testid="stDecoration"],
+[data-testid="stToolbarActions"],
+[data-testid="stMainMenu"],
+[data-testid="stAppDeployButton"],
+[data-testid="stStatusWidget"] { display: none !important; }
 header[data-testid="stHeader"] { background: transparent; }
+
+/* التأكد من ظهور أزرار فتح/إغلاق الشريط الجانبي */
+[data-testid="stToolbar"],
+[data-testid="stExpandSidebarButton"],
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="stSidebarCollapseButton"] {
+    visibility: visible !important;
+    opacity: 1 !important;
+}
 
 /* الاتجاه والخط
    مهم: الحاوية الخارجية تبقى LTR حتى لا يتداخل الشريط الجانبي مع المحتوى،
@@ -53,7 +65,7 @@ header[data-testid="stHeader"] { background: transparent; }
 }
 [data-testid="stAppViewContainer"] { direction: ltr; }
 [data-testid="stMain"],
-[data-testid="stSidebar"] { direction: rtl; }
+[data-testid="stSidebarContent"] { direction: rtl; }
 
 .stApp,
 .stApp :is(p, h1, h2, h3, h4, h5, h6, label, input, textarea, button, li, a, td, th, caption, summary) {
@@ -541,6 +553,32 @@ def render_sidebar(user_info, is_admin):
             logout()
 
 
+def render_topbar(user_info, is_admin):
+    """شريط تنقل أعلى الصفحة (نفس خيارات الشريط الجانبي) يظل ظاهراً حتى لو اتقفل السايد بار."""
+    on_settings = st.session_state.show_admin_settings
+    widths = [3, 1.2, 1.6, 1.2] if is_admin else [4, 1.2, 1.2]
+    cols = st.columns(widths)
+
+    with cols[0]:
+        st.markdown(
+            f"**{esc(user_info['name'])}** · {ROLE_LABELS[user_info['role']]}"
+        )
+    with cols[1]:
+        if st.button("🏠 الرئيسية", key="top_home", type="secondary" if on_settings else "primary"):
+            st.session_state.show_admin_settings = False
+            st.rerun()
+    idx = 2
+    if is_admin:
+        with cols[idx]:
+            if st.button("⚙️ الإعدادات", key="top_admin", type="primary" if on_settings else "secondary"):
+                st.session_state.show_admin_settings = True
+                st.rerun()
+        idx += 1
+    with cols[idx]:
+        if st.button("🚪 خروج", key="top_logout"):
+            logout()
+
+
 def render_admin_settings(current_user):
     st.title("إعدادات النظام والأمان")
     st.caption("هذه الصفحة للأدمن فقط: إدارة المصادقة الثنائية والأجهزة الموثوقة والمستخدمين.")
@@ -882,6 +920,7 @@ else:
     can_manage = user_info["role"] in ("admin", "manager")
 
     render_sidebar(user_info, is_admin)
+    render_topbar(user_info, is_admin)
 
     if is_admin and st.session_state.show_admin_settings:
         render_admin_settings(current_user)
