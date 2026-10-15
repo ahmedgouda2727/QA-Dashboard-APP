@@ -80,7 +80,7 @@ header[data-testid="stHeader"] { background: transparent; }
 [data-testid="stCode"], .stApp code { direction: ltr; text-align: left; }
 
 .block-container {
-    max-width: 1180px;
+    max-width: 1400px;
     padding: 2.5rem 2rem 4rem;
 }
 h1, h2, h3 { color: var(--ink); font-weight: 700; }
@@ -228,6 +228,22 @@ iframe { border: 1px solid var(--line) !important; border-radius: 12px; backgrou
 .stTabs [data-baseweb="tab"] { font-weight: 600; }
 .stTabs [aria-selected="true"] { color: var(--brand); }
 .stTabs [data-baseweb="tab-highlight"] { background: var(--brand); }
+
+/* اللوحة الجانبية اليمنى */
+[data-testid="stColumn"]:has(.side-marker) {
+    position: sticky; top: 3.5rem; align-self: flex-start;
+}
+[data-testid="stColumn"]:has(.side-marker) > [data-testid="stVerticalBlock"] {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 14px; padding: 1rem;
+}
+[data-testid="stColumn"]:has(.side-marker) .stButton > button,
+[data-testid="stColumn"]:has(.side-marker) [data-testid="stPopover"] > button,
+[data-testid="stColumn"]:has(.side-marker) [data-testid="stPopover"] { width: 100%; }
+[data-testid="stColumn"]:has(.side-marker) [data-testid="stPopover"] > button {
+    border-radius: 8px; font-weight: 600; justify-content: center;
+}
+.side-marker { display: none; }
 
 /* الجوال */
 @media (max-width: 768px) {
@@ -489,78 +505,72 @@ def render_2fa():
             logout()
 
 
-def render_header(user_info, is_admin):
-    """هيدر ثابت أعلى الصفحة: لوجو الشركة + لوجو القسم + أهلاً بك واسم المستخدم + تسجيل الخروج.
-    أدوات الأدمن (التنقل للإعدادات وتغيير الشعارات) تظهر للأدمن فقط."""
-    c_co, c_qa, c_user, c_out = st.columns([1.2, 1.2, 3, 1.1], vertical_alignment="center")
+def render_side_panel(user_info, is_admin):
+    """لوحة جانبية على اليمين (بدل st.sidebar الذي كان يختفي):
+    لوجو الشركة + لوجو القسم + أهلاً بك واسم المستخدم + تسجيل الخروج.
+    أدوات الأدمن (الإعدادات وتغيير الشعارات) تظهر للأدمن فقط."""
+    st.markdown('<span class="side-marker"></span>', unsafe_allow_html=True)
 
-    with c_co:
-        st.markdown(
-            f'<div class="sb-logo">{logo_html(store["company_logo"], "ليناركو")}</div>',
-            unsafe_allow_html=True,
-        )
-    with c_qa:
-        st.markdown(
-            f'<div class="sb-logo">{logo_html(store["qa_logo"], "قسم الجودة")}</div>',
-            unsafe_allow_html=True,
-        )
-    with c_user:
-        st.markdown(
-            f"""
-            <div class="user-chip">
-                <div class="avatar">{esc(user_info["name"][:1])}</div>
-                <div>
-                    <div class="name">أهلاً بك، {esc(user_info["name"])}</div>
-                    <div class="role">{ROLE_LABELS[user_info["role"]]}</div>
-                </div>
+    st.markdown(
+        f'<div class="sb-logo">{logo_html(store["company_logo"], "ليناركو")}</div>'
+        f'<div class="sb-logo">{logo_html(store["qa_logo"], "قسم الجودة")}</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        f"""
+        <div class="user-chip">
+            <div class="avatar">{esc(user_info["name"][:1])}</div>
+            <div>
+                <div class="name">أهلاً بك، {esc(user_info["name"])}</div>
+                <div class="role">{ROLE_LABELS[user_info["role"]]}</div>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with c_out:
-        if st.button("🚪 تسجيل الخروج", key="logout_btn"):
-            logout()
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     # ── أدوات الأدمن فقط ──
     if is_admin:
         on_settings = st.session_state.show_admin_settings
-        a1, a2, a3, _ = st.columns([1.2, 2, 1.6, 2.4])
+        st.markdown('<div class="sb-label">القائمة</div>', unsafe_allow_html=True)
 
-        with a1:
-            if st.button(
-                "🏠 الرئيسية",
-                key="nav_home",
-                type="secondary" if on_settings else "primary",
-            ):
-                st.session_state.show_admin_settings = False
+        if st.button(
+            "🏠 الرئيسية",
+            key="nav_home",
+            type="secondary" if on_settings else "primary",
+        ):
+            st.session_state.show_admin_settings = False
+            st.rerun()
+
+        if st.button(
+            "⚙️ إعدادات النظام والأمان",
+            key="nav_admin",
+            type="primary" if on_settings else "secondary",
+        ):
+            st.session_state.show_admin_settings = True
+            st.rerun()
+
+        with st.popover("🖼️ تغيير الشعارات"):
+            up_c = st.file_uploader(
+                "شعار ليناركو الجديد", type=["png", "jpg", "jpeg"], key="hd_c_logo"
+            )
+            if up_c is not None and st.button("حفظ شعار الشركة", key="save_c_logo"):
+                store["company_logo"] = enhance_image(up_c)
                 st.rerun()
-        with a2:
-            if st.button(
-                "⚙️ إعدادات النظام والأمان",
-                key="nav_admin",
-                type="primary" if on_settings else "secondary",
-            ):
-                st.session_state.show_admin_settings = True
+
+            st.markdown('<div class="sb-sep"></div>', unsafe_allow_html=True)
+
+            up_q = st.file_uploader(
+                "شعار قسم الجودة الجديد", type=["png", "jpg", "jpeg"], key="hd_qa_logo"
+            )
+            if up_q is not None and st.button("حفظ شعار الجودة", key="save_qa_logo"):
+                store["qa_logo"] = enhance_image(up_q)
                 st.rerun()
-        with a3:
-            with st.popover("🖼️ تغيير الشعارات"):
-                up_c = st.file_uploader(
-                    "شعار ليناركو الجديد", type=["png", "jpg", "jpeg"], key="hd_c_logo"
-                )
-                if up_c is not None and st.button("حفظ شعار الشركة", key="save_c_logo"):
-                    store["company_logo"] = enhance_image(up_c)
-                    st.rerun()
-
-                st.markdown('<div class="sb-sep"></div>', unsafe_allow_html=True)
-
-                up_q = st.file_uploader(
-                    "شعار قسم الجودة الجديد", type=["png", "jpg", "jpeg"], key="hd_qa_logo"
-                )
-                if up_q is not None and st.button("حفظ شعار الجودة", key="save_qa_logo"):
-                    store["qa_logo"] = enhance_image(up_q)
-                    st.rerun()
 
     st.markdown('<div class="sb-sep"></div>', unsafe_allow_html=True)
+    if st.button("🚪 تسجيل الخروج", key="logout_btn"):
+        logout()
 
 
 def render_admin_settings(current_user):
@@ -903,9 +913,13 @@ else:
     is_admin = user_info["role"] == "admin"
     can_manage = user_info["role"] in ("admin", "manager")
 
-    render_header(user_info, is_admin)
+    side_col, main_col = st.columns([1, 3.6], gap="large")
 
-    if is_admin and st.session_state.show_admin_settings:
-        render_admin_settings(current_user)
-    else:
-        render_portal(user_info, can_manage)
+    with side_col:
+        render_side_panel(user_info, is_admin)
+
+    with main_col:
+        if is_admin and st.session_state.show_admin_settings:
+            render_admin_settings(current_user)
+        else:
+            render_portal(user_info, can_manage)
