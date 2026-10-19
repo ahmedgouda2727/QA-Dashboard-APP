@@ -107,6 +107,10 @@ TR = {
         "tab_add_project": "إضافة مشروع",
         "tab_add_news": "إضافة خبر",
         "project": "المشروع",
+        "f_proj_name": "اسم المشروع (يظهر في القائمة)",
+        "f_proj_name_en": "اسم المشروع بالإنجليزية (اختياري)",
+        "name_exists": "يوجد مشروع بنفس هذا الاسم بالفعل.",
+        "name_empty": "اسم المشروع لا يمكن أن يكون فارغاً.",
         "f_title": "العنوان",
         "f_title_en": "العنوان بالإنجليزية (اختياري)",
         "f_desc": "الوصف",
@@ -246,6 +250,10 @@ TR = {
         "tab_add_project": "Add project",
         "tab_add_news": "Add news",
         "project": "Project",
+        "f_proj_name": "Project name (shown in the list)",
+        "f_proj_name_en": "English project name (optional)",
+        "name_exists": "A project with this name already exists.",
+        "name_empty": "The project name cannot be empty.",
         "f_title": "Title",
         "f_title_en": "English title (optional)",
         "f_desc": "Description",
@@ -1042,6 +1050,19 @@ def project_name(key):
     return d.get("name_en") if cur_lang() == "en" and d.get("name_en") else key
 
 
+def rename_project(old_key, new_key, new_data):
+    """يعيد تسمية المشروع (مفتاح القاموس) مع الحفاظ على الترتيب."""
+    dashboards = store["dashboards"]
+    rebuilt = {}
+    for k, v in dashboards.items():
+        if k == old_key:
+            rebuilt[new_key] = new_data
+        else:
+            rebuilt[k] = v
+    dashboards.clear()
+    dashboards.update(rebuilt)
+
+
 # حالة الجلسة الخاصة بكل متصفح
 for _key, _default in {
     "logged_in": False,
@@ -1310,6 +1331,14 @@ def render_manage_panel():
             )
             if edit_key:
                 cur = dashboards[edit_key]
+                new_name = st.text_input(
+                    t("f_proj_name"), value=edit_key, key=f"edit_name_{edit_key}"
+                )
+                new_name_en = st.text_input(
+                    t("f_proj_name_en"),
+                    value=cur.get("name_en", ""),
+                    key=f"edit_name_en_{edit_key}",
+                )
                 new_title = st.text_input(t("f_title"), value=cur["title"], key=f"edit_title_{edit_key}")
                 new_title_en = st.text_input(
                     t("f_title_en"), value=cur.get("title_en", ""), key=f"edit_title_en_{edit_key}"
@@ -1336,21 +1365,36 @@ def render_manage_panel():
                     key=f"up_{edit_key}",
                 )
                 if st.button(t("save_changes"), type="primary", key=f"save_{edit_key}"):
-                    files = cur.get("files", [])
-                    if uploaded is not None:
-                        files.append({"name": uploaded.name, "data": uploaded.getvalue()})
-                    dashboards[edit_key] = {
-                        **cur,
-                        "title": new_title,
-                        "title_en": new_title_en.strip(),
-                        "description": new_desc,
-                        "description_en": new_desc_en.strip(),
-                        "url": new_url,
-                        "embed_url": new_embed.strip(),
-                        "category": norm_cat(new_cat),
-                        "files": files,
-                    }
-                    st.rerun()
+                    final_name = new_name.strip()
+                    if not final_name:
+                        st.warning(t("name_empty"))
+                    elif final_name != edit_key and final_name in dashboards:
+                        st.warning(t("name_exists"))
+                    else:
+                        files = cur.get("files", [])
+                        if uploaded is not None:
+                            files.append({"name": uploaded.name, "data": uploaded.getvalue()})
+                        updated = {
+                            **cur,
+                            "name_en": new_name_en.strip(),
+                            "title": new_title,
+                            "title_en": new_title_en.strip(),
+                            "description": new_desc,
+                            "description_en": new_desc_en.strip(),
+                            "url": new_url,
+                            "embed_url": new_embed.strip(),
+                            "category": norm_cat(new_cat),
+                            "files": files,
+                        }
+                        if final_name != edit_key:
+                            rename_project(edit_key, final_name, updated)
+                            # نحدّث الاختيارات عشان ما ترجعش لاسم قديم مش موجود
+                            st.session_state["edit_select"] = final_name
+                            if st.session_state.get("project_select") == edit_key:
+                                st.session_state["project_select"] = final_name
+                        else:
+                            dashboards[edit_key] = updated
+                        st.rerun()
 
         with tab2:
             add_name = st.text_input(t("add_name"), key="add_name")
